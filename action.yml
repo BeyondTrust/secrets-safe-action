@@ -1,0 +1,61 @@
+name: 'password safe library action'
+description: 'password safe library action'
+inputs:
+  password-safe-client-id:
+    description: 'password-safe-client-id:'
+    required: true
+    default: ''
+  password-safe-client-secret:
+    description: 'password-safe-client-secret'
+    required: true
+    default: ''
+  password-safe-api-url:
+    description: 'password-safe-api-url'
+    required: true
+    default: ''
+  verify-ca:
+    description: 'verify-ca'
+    required: false
+    default: 'true'
+  certificate-path:
+    description: 'certificate-path'
+    required: false
+    default: ''
+  certificate-password:
+    description: 'certificate-password'
+    required: false
+    default: ''
+  secret:
+    description: 'secret'
+    required: false
+    default: ''
+  secret-list:
+    description: 'secret-list'
+    required: false
+    default: ''
+  managed-account:
+    description: 'managed-account'
+    required: false
+    default: ''
+  managed-account-list:
+    description: 'managed-account-list'
+    required: false
+    default: ''
+outputs:
+  output:
+    description: 'output'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.password-safe-client-id }}
+    - ${{ inputs.password-safe-client-secret }}
+    - ${{ inputs.password-safe-api-url }}
+    - ${{ inputs.verify-ca }}
+    - ${{ inputs.certificate-path }}
+    - ${{ inputs.certificate-password }}
+    - ${{ inputs.secret }}
+    - ${{ inputs.secret-list }}
+    - ${{ inputs.managed-account }}
+    - ${{ inputs.managed-account-list }}
+

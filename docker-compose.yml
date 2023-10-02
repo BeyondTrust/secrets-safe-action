@@ -1,0 +1,18 @@
+version: "3.8"
+services:
+  githubintegration:
+    build:
+      context: .
+    environment:
+      - PASSWORD_SAFE_API_URL=${PASSWORD_SAFE_API_URL}
+      - PASSWORD_SAFE_CLIENT_ID=${PASSWORD_SAFE_CLIENT_ID}
+      - PASSWORD_SAFE_CLIENT_SECRET=${PASSWORD_SAFE_CLIENT_SECRET}
+      - CERTIFICATE_PATH=${CERTIFICATE_PATH}
+      - CERTIFICATE_PASSWORD=${CERTIFICATE_PASSWORD}
+      - VERIFY_CA=${VERIFY_CA}
+      - SECRET=${SECRET}
+      - SECRET_LIST=${SECRET_LIST}
+      - MANAGED_ACCOUNT=${MANAGED_ACCOUNT}
+      - MANAGED_ACCOUNT_LIST=${MANAGED_ACCOUNT_LIST}
+      - PATH_SEPARATOR=${PATH_SEPARATOR}
+    container_name: secrets_safe_library_container
