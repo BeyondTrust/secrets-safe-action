@@ -6,8 +6,6 @@
   ```bash
   git clone https://github.com/BeyondTrust/ps-integration-library.git
   ```
-- Create certificate folder
-- Copy certificate in certificate folder that you just created, this step in just needed when API requires certificate.
 - Edit .env file, including needed data.
 - Build the image using docker compose
   ```bash
