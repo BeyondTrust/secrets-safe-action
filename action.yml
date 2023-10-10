@@ -17,12 +17,12 @@ inputs:
     description: 'verify-ca'
     required: false
     default: 'true'
-  certificate-path:
-    description: 'certificate-path'
+  certificate:
+    description: 'certificate'
     required: false
     default: ''
-  certificate-password:
-    description: 'certificate-password'
+  certificate-key:
+    description: 'certificate-key'
     required: false
     default: ''
   secret:
@@ -52,8 +52,8 @@ runs:
     - ${{ inputs.password-safe-client-secret }}
     - ${{ inputs.password-safe-api-url }}
     - ${{ inputs.verify-ca }}
-    - ${{ inputs.certificate-path }}
-    - ${{ inputs.certificate-password }}
+    - ${{ inputs.certificate }}
+    - ${{ inputs.certificate-key }}
     - ${{ inputs.secret }}
     - ${{ inputs.secret-list }}
     - ${{ inputs.managed-account }}

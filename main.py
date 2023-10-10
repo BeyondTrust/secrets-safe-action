@@ -1,6 +1,6 @@
 import os
 import logging
-from secrets_safe_package import secrets_safe, authentication, utils
+from secrets_safe_library import secrets_safe, authentication, utils
 
 env = os.environ
 
@@ -22,20 +22,16 @@ logging.basicConfig(
 
 logger = logging.getLogger(LOGGER_NAME)
 
-CERTIFICATE_PATH = None
-if 'CERTIFICATE_PATH' in env:
-    if len(env['CERTIFICATE_PATH']) > 0:
-        CERTIFICATE_PATH = env['CERTIFICATE_PATH']
-
-CERTIFICATE_PASSWORD = env['CERTIFICATE_PASSWORD'] if 'CERTIFICATE_PASSWORD' in env and CERTIFICATE_PATH else ""
+CERTIFICATE = env['CERTIFICATE'].replace(r'\n', '\n') if 'CERTIFICATE' in env else None
+CERTIFICATE_KEY = env['CERTIFICATE_KEY'].replace(r'\n', '\n') if 'CERTIFICATE_KEY' in env else None
 
 def main():
     try:
         authentication_obj = authentication.Authentication(PASSWORD_SAFE_API_URL, 
                                                     PASSWORD_SAFE_CLIENT_ID, 
                                                     PASSWORD_SAFE_CLIENT_SECRET,
-                                                    CERTIFICATE_PATH,
-                                                    CERTIFICATE_PASSWORD,
+                                                    CERTIFICATE,
+                                                    CERTIFICATE_KEY,
                                                     VERIFY_CA,
                                                     logger)
         
