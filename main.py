@@ -4,11 +4,11 @@ from secrets_safe_library import secrets_safe, authentication, utils
 
 env = os.environ
 
-PASSWORD_SAFE_CLIENT_ID = env["PASSWORD_SAFE_CLIENT_ID"] if 'PASSWORD_SAFE_CLIENT_ID' in env else None
-PASSWORD_SAFE_CLIENT_SECRET = env["PASSWORD_SAFE_CLIENT_SECRET"] if 'PASSWORD_SAFE_CLIENT_SECRET' in env else None
-PASSWORD_SAFE_API_URL = env["PASSWORD_SAFE_API_URL"] if 'PASSWORD_SAFE_API_URL' in env else None
-VERIFY_CA = True if 'VERIFY_CA' in env and env['VERIFY_CA'].lower() == 'true' else False
-SECRET = env['SECRET'].strip() if 'SECRET' in env else None
+PASSWORD_SAFE_CLIENT_ID = env["CLIENT-ID"] if 'CLIENT-ID' in env else None
+PASSWORD_SAFE_CLIENT_SECRET = env["CLIENT-SECRET"] if 'CLIENT-SECRET' in env else None
+PASSWORD_SAFE_API_URL = env["API_URL"] if 'API_URL' in env else None
+VERIFY_CA = True if 'VERIFY-CA' in env and env['VERIFY-CA'].lower() == 'true' else False
+SECRET = env['INPUT_SECRET'].strip() if 'INPUT_SECRET' in env else None
 SECRET_LIST = env['SECRET_LIST'].strip().split(",") if 'SECRET_LIST' in env and env['SECRET_LIST'].strip() != "" else None
 
 PATH_SEPARATOR = env['PATH_SEPARATOR'].strip() if 'PATH_SEPARATOR' in env else "/"
