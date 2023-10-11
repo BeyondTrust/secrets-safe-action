@@ -1,0 +1,2 @@
+pyOpenSSL==23.2.0
+retry-requests==2.0.0
