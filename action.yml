@@ -1,44 +1,36 @@
-name: 'password safe library action'
-description: 'password safe library action'
+name: 'Secrets Safe Action'
+description: 'This custom action allows for the retrieval of ASCII secrets from an instance of Secrets Safe.'
 inputs:
-  client-id:
-    description: 'client-id:'
+  client_id:
+    description: 'The API OAuth Client ID is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe'
     required: true
     default: ''
-  client-secret:
-    description: 'client-secret'
+  client_secret:
+    description: 'The API OAuth Client Secret is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe.'
     required: true
     default: ''
-  api-url:
-    description: 'api-url'
+  api_url:
+    description: 'The API URL for the Secrets Safe instance from which to request a secret.'
     required: true
     default: ''
-  verify-ca:
-    description: 'verify-ca'
+  verify_ca:
+    description: 'Indicates whether to verify the certificate authority on the Secrets Safe instance. For use when authenticating to Secrets Safe.'
     required: false
     default: 'true'
   certificate:
-    description: 'certificate'
+    description: 'Content of the certificate (cert.pem) for use when authenticating with an API key using a Client Certificate.'
     required: false
     default: ''
-  certificate-key:
-    description: 'certificate-key'
+  certificate_key:
+    description: 'Certificate private key (key.pem). For use when authenticating with an API key using a Client Certificate.'
     required: false
     default: ''
-  secret:
-    description: 'secret'
+  secret_path:
+    description: 'Path to the Secrets Safe secret. For example, folder/title'
     required: false
     default: ''
-  secret-list:
-    description: 'secret-list'
-    required: false
-    default: ''
-  managed-account:
-    description: 'managed-account'
-    required: false
-    default: ''
-  managed-account-list:
-    description: 'managed-account-list'
+  managed_account_path:
+    description: 'Path to the Managed Account secret. For example, system/account'
     required: false
     default: ''
 outputs:
@@ -48,14 +40,12 @@ runs:
   using: 'docker'
   image: 'Dockerfile'
   args:
-    - ${{ inputs.client-id }}
-    - ${{ inputs.client-secret }}
-    - ${{ inputs.api-url }}
-    - ${{ inputs.verify-ca }}
+    - ${{ inputs.client_id }}
+    - ${{ inputs.client_secret }}
+    - ${{ inputs.api_url }}
+    - ${{ inputs.verify_ca }}
     - ${{ inputs.certificate }}
-    - ${{ inputs.certificate-key }}
-    - ${{ inputs.secret }}
-    - ${{ inputs.secret-list }}
-    - ${{ inputs.managed-account }}
-    - ${{ inputs.managed-account-list }}
+    - ${{ inputs.certificate_key }}
+    - ${{ inputs.secret_path }}
+    - ${{ inputs.managed_account_path }}
 
