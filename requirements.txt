@@ -1,2 +1,3 @@
 pyOpenSSL==23.2.0
 retry-requests==2.0.0
+github_action_utils==1.1.0

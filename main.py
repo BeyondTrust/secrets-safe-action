@@ -3,6 +3,8 @@ import logging
 from secrets_safe_library import secrets_safe, authentication, utils, managed_account
 import uuid
 
+from github_action_utils import add_mask, set_output
+
 env = os.environ
 
 CLIENT_ID = env["CLIENT_ID"] if 'CLIENT_ID' in env else None
@@ -60,12 +62,12 @@ def main():
         if SECRET_PATH:
             secrets_safe_obj = secrets_safe.SecretsSafe(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_secret_response = secrets_safe_obj.get_secret(SECRET_PATH)
-            append_output("secret", get_secret_response)
+            set_output("secret", add_mask(get_secret_response))
         
         if MANAGED_ACCOUNT_PATH:
             managed_account_obj = managed_account.ManagedAccount(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_managed_account_response = managed_account_obj.get_secret(MANAGED_ACCOUNT_PATH)
-            append_output("managed_account", get_managed_account_response)
+            set_output("managed_account", add_mask(get_managed_account_response))
 
     except Exception as e:
         utils.print_log(logger, e, logging.ERROR)
