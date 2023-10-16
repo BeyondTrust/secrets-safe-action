@@ -30,14 +30,6 @@ CERTIFICATE = env['CERTIFICATE'].replace(r'\n', '\n') if 'CERTIFICATE' in env el
 CERTIFICATE_KEY = env['CERTIFICATE_KEY'].replace(r'\n', '\n') if 'CERTIFICATE_KEY' in env else None
 
 
-def append_output(name, value):
-    with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-        delimiter = uuid.uuid1()
-        print(f'{name}<<{delimiter}', file=fh)
-        print(value, file=fh)
-        print(delimiter, file=fh)
-        
-
 def main():
     try:
         authentication_obj = authentication.Authentication(API_URL, 
