@@ -103,7 +103,7 @@ Fnc9up2a1o0=
         print("Ya")
         print(certificate)
         #_print_command(command="add-mask", command_message=certificate, use_subprocess=False, escape_message=False)
-        append_output("certificate", certificate)
+        #append_output("certificate", certificate)
         #set_output("certificate", certificate)
 
 
