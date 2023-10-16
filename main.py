@@ -67,7 +67,7 @@ def main():
         _print_command(command="add-mask", command_message=client_id, use_subprocess=False, escape_message=False)
         set_output("client_id", client_id)
         
-        certificate='''-----BEGIN CERTIFICATE-----
+        certificate='''-----BEGIN CERTIFICATE-----dd
 MIIDZDCCAkygAwIBAgIRANRWB3YpIKxHsgc/yDDu9Z4wDQYJKoZIhvcNAQELBQAw
 UzEPMA0GA1UEBhMGQ2FuYWRhMRQwEgYDVQQLEwtEZXZlbG9wbWVudDEUMBIGA1UE
 ChMLQmV5b25kVHJ1c3QxFDASBgNVBAMTC1BTIENsb3VkIENBMB4XDTIzMDYyNzE4
