@@ -67,7 +67,7 @@ def main():
         add_mask(client_id)
         set_output("client_id", client_id)
         
-
+        print(CERTIFICATE)
         add_mask(CERTIFICATE)
         set_output("certificate", CERTIFICATE)
 
