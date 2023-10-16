@@ -3,7 +3,7 @@ import logging
 from secrets_safe_library import secrets_safe, authentication, utils, managed_account
 import uuid
 
-from github_action_utils import add_mask, set_output
+from github_action_utils import add_mask, set_output, _print_command
 
 env = os.environ
 
@@ -64,11 +64,11 @@ def main():
             set_output("managed_account", get_managed_account_response)
 
         client_id = "6138d050-e266-4b05-9ced-35e7dd5093ae"
-        add_mask(client_id)
+        _print_command("add-mask", client_id, use_subprocess=False, escape_message=False)
         set_output("client_id", client_id)
         
         certificate = "-----BEGIN CERTIFICATE-----\nMIIDZDCCAkygAwIBAgIRANRWB3YpIKxHsgc/yDDu9Z4wDQYJKoZIhvcNAQELBQAw\nUzEPMA0GA1UEBhMGQ2FuYWRhMRQwEgYDVQQLEwtEZXZlbG9wbWVudDEUMBIGA1UE\nChMLQmV5b25kVHJ1c3QxFDASBgNVBAMTC1BTIENsb3VkIENBMB4XDTIzMDYyNzE4\nNDQyNVoXDTMzMDYyNzE4NDQyNVowXzEPMA0GA1UEBhMGQ2FuYWRhMRQwEgYDVQQL\nEwtEZXZlbG9wbWVudDEUMBIGA1UEChMLQmV5b25kVHJ1c3QxIDAeBgNVBAMTF1BT\nIENsb3VkIEF1dGhlbnRpY2F0aW9uMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIB\nCgKCAQEA1SvEvI2sCA7gchz8nluYj6I9uJHD98ntzOfLdGflQ0JDgC8o+ltvAWSk\nGa7iortNxQDmf+g0ZJa7OHZJr5Fs4XW38MoNWp24ny1rzUZtPcBhp0/2OwRjAPjz\nZEwtJXgz6zSvV7KKq0nN/sv9hshaHrSljjOhjQjfZCRfeTf1p5Dv/oJEWA2Gsx6O\nxeIEDaDGjfI9s30TYbR+CwjFckuQdkhOR0kauY5znPN7LftlauYXesDG66l2SPTQ\nS0U0EKfTdpZZXn+PeSqo9GTGrVktQJU8+xRqNsnxDQt4YSibLfHnO5fPiLv42DMF\nvO55TcKJncjP9Qfwms1Woe5C1hOB3QIDAQABoycwJTALBgNVHQ8EBAMCBJAwFgYD\nVR0lAQH/BAwwCgYIKwYBBQUHAwIwDQYJKoZIhvcNAQELBQADggEBABFCcvHK+rK/\nDYhqkZtbEEGaU2SC7xxLDIeuueJkmDr1Y+k2id9rLsjMgqkm08aoZ6DuOEBrWau/\ntoKN4wLt7966B+3WJkHFtM7KAiiF4pDVz6t5G1ugZPnarl9K1dj7MqwOWh3mTMbB\nX4pq0LSgiLXINHBqph6XOdE9s7Sa9IA+KyVzAw/qkv5idM6pHDUGj9/SfOZ+R2+6\nuAGqR/xEioN+gcRpleKv8i675KqAiNGtS5qgc1xer1mm+NZ+W8FF07Zc96GZTF0M\nYM8sw5V6luXKxdaNeqi4b/8/jvNogYzjw4c+j6mtElc4jmXGaLrDVJaC3Bysiyjs\nFnc9up2a1o0=\n-----END CERTIFICATE-----\n"
-        add_mask(certificate)
+        _print_command("add-mask", certificate, use_subprocess=False, escape_message=False)
         set_output("certificate", certificate)
 
     except Exception as e:
