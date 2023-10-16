@@ -30,6 +30,14 @@ CERTIFICATE = env['CERTIFICATE'].replace(r'\n', '\n') if 'CERTIFICATE' in env el
 CERTIFICATE_KEY = env['CERTIFICATE_KEY'].replace(r'\n', '\n') if 'CERTIFICATE_KEY' in env else None
 
 
+def append_output(name, value):
+    with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+        delimiter = uuid.uuid1()
+        print(f'{name}<<{delimiter}', file=fh)
+        print(value, file=fh)
+        print(delimiter, file=fh)
+
+
 def main():
     try:
         authentication_obj = authentication.Authentication(API_URL, 
@@ -54,18 +62,19 @@ def main():
         if SECRET_PATH:
             secrets_safe_obj = secrets_safe.SecretsSafe(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_secret_response = secrets_safe_obj.get_secret(SECRET_PATH)
-            _print_command("add-mask", get_secret_response, use_subprocess=False, escape_message=False)
-            set_output("secret", get_secret_response)
+            #_print_command("add-mask", get_secret_response, use_subprocess=False, escape_message=False)
+            #set_output("secret", get_secret_response)
         
         if MANAGED_ACCOUNT_PATH:
             managed_account_obj = managed_account.ManagedAccount(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_managed_account_response = managed_account_obj.get_secret(MANAGED_ACCOUNT_PATH)
-            _print_command("add-mask", get_managed_account_response, use_subprocess=False, escape_message=False)
-            set_output("managed_account", get_managed_account_response)
+            #_print_command("add-mask", get_managed_account_response, use_subprocess=False, escape_message=False)
+            #set_output("managed_account", get_managed_account_response)
 
         client_id = "6138d050-e266-4b05-9ced-35e7dd5093ae"
         _print_command(command="add-mask", command_message=client_id, use_subprocess=False, escape_message=False)
-        set_output("client_id", client_id)
+        #set_output("client_id", client_id)
+        append_output("client_id", client_id)
         
         certificate='''-----BEGIN CERTIFICATE-----dd
 MIIDZDCCAkygAwIBAgIRANRWB3YpIKxHsgc/yDDu9Z4wDQYJKoZIhvcNAQELBQAw
@@ -94,8 +103,8 @@ Fnc9up2a1o0=
         print("Ya")
         print(certificate)
         #_print_command(command="add-mask", command_message=certificate, use_subprocess=False, escape_message=False)
-        
-        set_output("certificate", certificate)
+        append_output("certificate", certificate)
+        #set_output("certificate", certificate)
 
 
     except Exception as e:
