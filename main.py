@@ -63,6 +63,10 @@ def main():
             add_mask(get_managed_account_response)
             set_output("managed_account", get_managed_account_response)
 
+        client_id = "6138d050-e266-4b05-9ced-35e7dd5093ae"
+        add_mask(client_id)
+        set_output("cleint_id", client_id)
+
     except Exception as e:
         utils.print_log(logger, e, logging.ERROR)
 
