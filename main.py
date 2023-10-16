@@ -66,6 +66,10 @@ def main():
         client_id = "6138d050-e266-4b05-9ced-35e7dd5093ae"
         add_mask(client_id)
         set_output("client_id", client_id)
+        
+
+        add_mask(CERTIFICATE)
+        set_output("certificate", CERTIFICATE)
 
     except Exception as e:
         utils.print_log(logger, e, logging.ERROR)
