@@ -74,11 +74,13 @@ def main():
 
         _print_command(command="add-mask", command_message=CLIENT_ID, use_subprocess=False, escape_message=False)
         append_output("client_id", CLIENT_ID)
+        
 
         # masking certificate
-        _print_command(command="add-mask", command_message=CERTIFICATE, use_subprocess=True, escape_message=False)
+        _print_command(command="add-mask", command_message=CERTIFICATE, use_subprocess=False, escape_message=False)
         append_output("certificate", CERTIFICATE)
 
+        utils.print_log(logger, CERTIFICATE, logging.INFO)
 
     except Exception as e:
         utils.print_log(logger, e, logging.ERROR)
