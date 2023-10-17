@@ -85,8 +85,7 @@ def main():
         utils.print_log(logger, e, logging.ERROR)
         error(
             e,
-            title="Error",
-            file="abc.py",
+            title="test title",
             col=1,
             end_column=2,
             line=4,
