@@ -1,9 +1,9 @@
 import os
-import logging
-from secrets_safe_library import secrets_safe, authentication, utils, managed_account
 import uuid
+import logging
 
-from github_action_utils import set_output, _print_command, error
+from secrets_safe_library import secrets_safe, authentication, utils, managed_account
+from github_action_utils import  _print_command, error
 
 env = os.environ
 
@@ -71,19 +71,15 @@ def main():
             _print_command("add-mask", get_managed_account_response, use_subprocess=False, escape_message=False)
             append_output("managed_account", get_managed_account_response)
 
-
-        _print_command(command="add-mask", command_message=CLIENT_ID, use_subprocess=False, escape_message=False)
-        append_output("client_id", CLIENT_ID)
-        
-
-        # masking certificate
-        _print_command(command="add-mask", command_message=CERTIFICATE, use_subprocess=False, escape_message=False)
-        append_output("certificate", CERTIFICATE)
-
-        utils.print_log(logger, "certificate content", logging.INFO)
-        utils.print_log(logger, CERTIFICATE, logging.INFO)
-
     except Exception as e:
+        error(
+            e,
+            title="Action Failed",
+            col=1,
+            end_column=2,
+            line=4,
+            end_line=5,
+        )
         utils.print_log(logger, e, logging.ERROR)
 
 # calling main method
