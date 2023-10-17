@@ -3,7 +3,7 @@ import logging
 from secrets_safe_library import secrets_safe, authentication, utils, managed_account
 import uuid
 
-from github_action_utils import add_mask, set_output, _print_command
+from github_action_utils import set_output, _print_command, error
 
 env = os.environ
 
@@ -83,6 +83,15 @@ def main():
     except Exception as e:
         
         utils.print_log(logger, e, logging.ERROR)
+        error(
+            e,
+            title="Error",
+            file="abc.py",
+            col=1,
+            end_column=2,
+            line=4,
+            end_line=5,
+        )
 
 # calling main method
 main()
