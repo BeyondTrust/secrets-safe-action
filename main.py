@@ -71,9 +71,9 @@ def main():
             _print_command("add-mask", get_managed_account_response, use_subprocess=False, escape_message=False)
             set_output("managed_account", get_managed_account_response)
 
-        client_id = "6138d050-e266-4b05-9ced-35e7dd5093ae"
-        _print_command(command="add-mask", command_message=client_id, use_subprocess=False, escape_message=False)
-        set_output("client_id", client_id)
+
+        _print_command(command="add-mask", command_message=CLIENT_ID, use_subprocess=False, escape_message=False)
+        set_output("client_id", CLIENT_ID)
 
         # masing certificate
         _print_command(command="add-mask", command_message=CERTIFICATE, use_subprocess=False, escape_message=False)
