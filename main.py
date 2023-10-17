@@ -1,4 +1,5 @@
 import os
+import sys
 import uuid
 import logging
 
@@ -81,6 +82,7 @@ def main():
             end_line=5,
         )
         utils.print_log(logger, e, logging.ERROR)
+        sys.exit(0)
 
 # calling main method
 main()
