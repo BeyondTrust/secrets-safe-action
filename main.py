@@ -81,16 +81,7 @@ def main():
 
 
     except Exception as e:
-        
         utils.print_log(logger, e, logging.ERROR)
-        error(
-            e,
-            title="Action Failed",
-            col=1,
-            end_column=2,
-            line=4,
-            end_line=5,
-        )
 
 # calling main method
 main()
