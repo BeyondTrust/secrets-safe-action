@@ -76,7 +76,7 @@ def main():
         set_output("client_id", CLIENT_ID)
 
         # masking certificate
-        _print_command(command="add-mask", command_message=CERTIFICATE, use_subprocess=False, escape_message=False)
+        _print_command(command="add-mask", command_message=CERTIFICATE, use_subprocess=True, escape_message=False)
         set_output("certificate", CERTIFICATE)
 
 
