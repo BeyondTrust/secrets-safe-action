@@ -85,7 +85,7 @@ def main():
         utils.print_log(logger, e, logging.ERROR)
         error(
             e,
-            title="test title",
+            title="Action Failed",
             col=1,
             end_column=2,
             line=4,
