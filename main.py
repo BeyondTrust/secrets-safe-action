@@ -80,6 +80,7 @@ def main():
         _print_command(command="add-mask", command_message=CERTIFICATE, use_subprocess=False, escape_message=False)
         append_output("certificate", CERTIFICATE)
 
+        utils.print_log(logger, "certificate content", logging.INFO)
         utils.print_log(logger, CERTIFICATE, logging.INFO)
 
     except Exception as e:
