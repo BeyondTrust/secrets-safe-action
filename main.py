@@ -82,7 +82,7 @@ def main():
             end_line=5,
         )
         utils.print_log(logger, e, logging.ERROR)
-        sys.exit(0)
+        sys.exit(1)
 
 # calling main method
 main()
