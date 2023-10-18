@@ -1,7 +1,10 @@
 import os
-import logging
-from secrets_safe_library import secrets_safe, authentication, utils, managed_account
+import sys
 import uuid
+import logging
+
+from secrets_safe_library import secrets_safe, authentication, utils, managed_account
+from github_action_utils import  _print_command, error
 
 env = os.environ
 
@@ -34,7 +37,7 @@ def append_output(name, value):
         print(f'{name}<<{delimiter}', file=fh)
         print(value, file=fh)
         print(delimiter, file=fh)
-        
+
 
 def main():
     try:
@@ -60,15 +63,26 @@ def main():
         if SECRET_PATH:
             secrets_safe_obj = secrets_safe.SecretsSafe(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_secret_response = secrets_safe_obj.get_secret(SECRET_PATH)
+            _print_command("add-mask", get_secret_response, use_subprocess=False, escape_message=False)
             append_output("secret", get_secret_response)
         
         if MANAGED_ACCOUNT_PATH:
             managed_account_obj = managed_account.ManagedAccount(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_managed_account_response = managed_account_obj.get_secret(MANAGED_ACCOUNT_PATH)
+            _print_command("add-mask", get_managed_account_response, use_subprocess=False, escape_message=False)
             append_output("managed_account", get_managed_account_response)
 
     except Exception as e:
+        error(
+            e,
+            title="Action Failed",
+            col=1,
+            end_column=2,
+            line=4,
+            end_line=5,
+        )
         utils.print_log(logger, e, logging.ERROR)
+        sys.exit(1)
 
 # calling main method
 main()
