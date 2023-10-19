@@ -33,6 +33,10 @@ inputs:
     description: 'Path to the Managed Account secret. For example, system/account'
     required: false
     default: ''
+  log_level:
+    description: 'Log level'
+    required: false
+    default: 'INFO'
 outputs:
   output:
     description: 'output'
@@ -48,4 +52,4 @@ runs:
     - ${{ inputs.certificate_key }}
     - ${{ inputs.secret_path }}
     - ${{ inputs.managed_account_path }}
-
+    - ${{ inputs.log_level }}

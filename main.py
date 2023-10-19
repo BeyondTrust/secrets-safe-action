@@ -4,7 +4,7 @@ import uuid
 import logging
 
 from secrets_safe_library import secrets_safe, authentication, utils, managed_account
-from github_action_utils import  _print_command, error
+from github_action_utils import error
 
 env = os.environ
 
@@ -18,11 +18,24 @@ MANAGED_ACCOUNT_PATH = env['INPUT_MANAGED_ACCOUNT_PATH'].strip() if 'INPUT_MANAG
 
 PATH_SEPARATOR = env['PATH_SEPARATOR'].strip() if 'PATH_SEPARATOR' in env and len(env['PATH_SEPARATOR'].strip()) == 1 else "/"
 
+LOG_LEVEL = env['LOG_LEVEL'].strip().upper() if 'LOG_LEVEL' in env else "INFO"
+
+LOG_LEVELS = {
+    "CRITICAL": 50,
+    "FATAL": 50,
+    "ERROR": 40,
+    "WARNING": 30,
+    "WARN": 30,
+    "INFO": 20,
+    "DEBUG": 10,
+    "NOTSET": 0
+}
+
 LOGGER_NAME = "custom_logger"
 
 logging.basicConfig(
     format = '%(asctime)-5s %(name)-15s %(levelname)-8s %(message)s', 
-    level  = logging.DEBUG
+    level  = LOG_LEVELS[LOG_LEVEL]
 )
 
 logger = logging.getLogger(LOGGER_NAME)
@@ -30,6 +43,10 @@ logger = logging.getLogger(LOGGER_NAME)
 CERTIFICATE = env['CERTIFICATE'].replace(r'\n', '\n') if 'CERTIFICATE' in env else None
 CERTIFICATE_KEY = env['CERTIFICATE_KEY'].replace(r'\n', '\n') if 'CERTIFICATE_KEY' in env else None
 
+CERTIFICATE = f"{CERTIFICATE}\n"
+CERTIFICATE_KEY = f"{CERTIFICATE_KEY}\n"
+
+COMMAND_MARKER: str = "::"
 
 def append_output(name, value):
     with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
@@ -37,6 +54,17 @@ def append_output(name, value):
         print(f'{name}<<{delimiter}', file=fh)
         print(value, file=fh)
         print(delimiter, file=fh)
+
+
+def print_command(command, command_message):
+    lines = command_message.split('\n')
+    for line in lines:
+        if line.strip() != "":
+            full_command = (
+                f"{COMMAND_MARKER}{command} "
+                f"{COMMAND_MARKER}{line}"
+            )   
+            print(full_command)
 
 
 def main():
@@ -53,25 +81,43 @@ def main():
         get_api_access_response = authentication_obj.get_api_access()
         
         if get_api_access_response.status_code != 200:
-            utils.print_log(logger, f"Please check credentials, error {get_api_access_response.text}", logging.ERROR)
-            return
+            error_message = f"Please check credentials, error {get_api_access_response.text}"
+            utils.print_log(logger, error_message, logging.ERROR)
+            error(
+                error_message,
+                title="Action Failed",
+                col=1,
+                end_column=2,
+                line=4,
+                end_line=5,
+            )
+            sys.exit(1)
             
         if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
-            utils.print_log(logger, f"Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty!", logging.ERROR)
-            return
+            error_message = f"Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
+            utils.print_log(logger, error_message, logging.ERROR)
+            error(
+                error_message,
+                title="Action Failed",
+                col=1,
+                end_column=2,
+                line=4,
+                end_line=5,
+            )
+            sys.exit(1)
 
         if SECRET_PATH:
             secrets_safe_obj = secrets_safe.SecretsSafe(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_secret_response = secrets_safe_obj.get_secret(SECRET_PATH)
-            _print_command("add-mask", get_secret_response, use_subprocess=False, escape_message=False)
+            print_command("add-mask", get_secret_response)
             append_output("secret", get_secret_response)
         
         if MANAGED_ACCOUNT_PATH:
             managed_account_obj = managed_account.ManagedAccount(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
             get_managed_account_response = managed_account_obj.get_secret(MANAGED_ACCOUNT_PATH)
-            _print_command("add-mask", get_managed_account_response, use_subprocess=False, escape_message=False)
+            print_command("add-mask", get_managed_account_response)
             append_output("managed_account", get_managed_account_response)
-
+            
     except Exception as e:
         error(
             e,
