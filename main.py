@@ -76,6 +76,8 @@ def show_error(error_message):
             line=4,
             end_line=5,
         )
+    utils.print_log(logger, error_message, logging.ERROR)
+    sys.exit(1)
 
 
 def main():
@@ -93,15 +95,11 @@ def main():
         
         if get_api_access_response.status_code != 200:
             error_message = f"Please check credentials, error {get_api_access_response.text}"
-            utils.print_log(logger, error_message, logging.ERROR)
             show_error(error_message)
-            sys.exit(1)
             
         if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
             error_message = f"Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
-            utils.print_log(logger, error_message, logging.ERROR)
             show_error(error_message)
-            sys.exit(1)
 
         if SECRET_PATH:
             secrets_safe_obj = secrets_safe.SecretsSafe(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
@@ -117,8 +115,6 @@ def main():
             
     except Exception as e:
         show_error(e)
-        utils.print_log(logger, e, logging.ERROR)
-        sys.exit(1)
 
 # calling main method
 main()
