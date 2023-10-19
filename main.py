@@ -67,6 +67,17 @@ def print_command(command, command_message):
             print(full_command)
 
 
+def show_error(error_message):
+    error(
+            error_message,
+            title="Action Failed",
+            col=1,
+            end_column=2,
+            line=4,
+            end_line=5,
+        )
+
+
 def main():
     try:
         authentication_obj = authentication.Authentication(API_URL, 
@@ -83,27 +94,13 @@ def main():
         if get_api_access_response.status_code != 200:
             error_message = f"Please check credentials, error {get_api_access_response.text}"
             utils.print_log(logger, error_message, logging.ERROR)
-            error(
-                error_message,
-                title="Action Failed",
-                col=1,
-                end_column=2,
-                line=4,
-                end_line=5,
-            )
+            show_error(error_message)
             sys.exit(1)
             
         if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
             error_message = f"Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
             utils.print_log(logger, error_message, logging.ERROR)
-            error(
-                error_message,
-                title="Action Failed",
-                col=1,
-                end_column=2,
-                line=4,
-                end_line=5,
-            )
+            show_error(error_message)
             sys.exit(1)
 
         if SECRET_PATH:
@@ -119,14 +116,7 @@ def main():
             append_output("managed_account", get_managed_account_response)
             
     except Exception as e:
-        error(
-            e,
-            title="Action Failed",
-            col=1,
-            end_column=2,
-            line=4,
-            end_line=5,
-        )
+        show_error(e)
         utils.print_log(logger, e, logging.ERROR)
         sys.exit(1)
 
