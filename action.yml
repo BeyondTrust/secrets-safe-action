@@ -38,6 +38,10 @@ inputs:
     description: 'Log level'
     required: false
     default: 'INFO'
+  path_separator:
+    description: 'Secrets path and managed accounts path separator'
+    required: false
+    default: '/'
 outputs:
   <output_id>:
     description: 'The action stores the retrieved secrets in output variables defined by the end user. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.'
@@ -54,6 +58,7 @@ runs:
     - ${{ inputs.secret_path }}
     - ${{ inputs.managed_account_path }}
     - ${{ inputs.log_level }}
+    - ${{ inputs.path_separator }}
 branding:
   icon: 'circle'
   color: 'orange'
