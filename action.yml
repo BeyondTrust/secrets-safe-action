@@ -1,4 +1,5 @@
 name: 'Secrets Safe Action'
+author: 'BeyondTrust Corporation'
 description: 'This custom action allows for the retrieval of ASCII secrets from an instance of Secrets Safe.'
 inputs:
   client_id:
@@ -26,11 +27,11 @@ inputs:
     required: false
     default: ''
   secret_path:
-    description: 'Path to the Secrets Safe secret. For example, folder/title'
+    description: 'Path to the Secrets Safe secret along with the value that the output secrets will be mapped to. For example, {"path": "path1/path2/title","output_id": "title"}'
     required: false
     default: ''
   managed_account_path:
-    description: 'Path to the Managed Account secret. For example, system/account'
+    description: 'Path to the Managed Account secret along with the value that the output secrets will be mapped to. For example, {"path": "system/account","output_id": "account"}'
     required: false
     default: ''
   log_level:
@@ -38,8 +39,8 @@ inputs:
     required: false
     default: 'INFO'
 outputs:
-  output:
-    description: 'output'
+  <output_id>:
+    description: 'The action stores the retrieved secrets in output variables defined by the end user. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.'
 runs:
   using: 'docker'
   image: 'Dockerfile'
@@ -53,3 +54,6 @@ runs:
     - ${{ inputs.secret_path }}
     - ${{ inputs.managed_account_path }}
     - ${{ inputs.log_level }}
+branding:
+  icon: 'circle'
+  color: 'orange'

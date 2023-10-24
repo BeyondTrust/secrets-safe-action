@@ -1,6 +1,7 @@
 # Secrets Safe Action
+[![License](https://img.shields.io/badge/license-GPL%20v3.0-brightgreen.svg)](LICENSE)
 
-This action retrieves secrets from BeyondTrust Secrets Safe and makes them available in the GitHub action workflow. The secrets are requested using either a Secrets Safe path or a path to a managed account which is composed of a managed system and account. The action output returns the secrets with an ID specified in the action request. This allows immediate retrieval and usage of secrets from your BeyondTrust Secrets Safe instance. Retrieved secrets are masked on the GitHub runner used to retrieve the secret. This helps reduce the chance that secrets are printed or logged by accident.
+This action retrieves ASCII secrets from BeyondTrust Secrets Safe and makes them available in the GitHub action workflow. The secrets are requested using either a Secrets Safe path or a path to a managed account which is composed of a managed system and account. The action output returns the secrets with an ID specified in the action request. This allows immediate retrieval and usage of secrets from your BeyondTrust Secrets Safe instance. Retrieved secrets are masked on the GitHub runner used to retrieve the secret. This helps reduce the chance that secrets are printed or logged by accident.
 
 **Warning:** It is important that security-minded engineers review workflow composition before changes are run with access to secrets.
 
@@ -31,11 +32,11 @@ https://example.com:443/beyondtrust/api/public/V3
 ```json
 [
   {
-    "path": "path1/path2/title",
+    "path": "folder1/folder2/title",
     "output_id": "title"
   },
   {
-    "path": "path1/path2/title2",
+    "path": "folder1/folder2/title2",
     "output_id": "title2"
   }
 ]
@@ -91,7 +92,7 @@ env:
   CERTIFICATE: ${{secrets.CERTIFICATE}}
   CERTIFICATE_KEY: ${{secrets.CERTIFICATE_KEY}}
 with:
-  SECRET_PATH: '{"path": "path1/path2/title", "output_id": "title"}'
+  SECRET_PATH: '{"path": "folder1/folder2/title", "output_id": "title"}'
   MANAGED_ACCOUNT_PATH: '{"path": "system/account", "output_id": "account"}'
 ```
 
