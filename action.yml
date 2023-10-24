@@ -27,7 +27,7 @@ inputs:
     required: false
     default: ''
   secret_path:
-    description: 'Path to the Secrets Safe secret along with the value that the output secrets will be mapped to. For example, {"path": "path1/path2/title","output_id": "title"}'
+    description: 'Path to the Secrets Safe secret along with the value that the output secrets will be mapped to. For example, {"path": "folder1/folder2/title","output_id": "title"}'
     required: false
     default: ''
   managed_account_path:

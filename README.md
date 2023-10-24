@@ -1,5 +1,10 @@
+<a href="https://www.beyondtrust.com">
+    <img src="images/beyondtrust_logo.svg" alt="BeyondTrust" title="BeyondTrust" align="right" height="30">
+</a>
+
 # Secrets Safe Action
 [![License](https://img.shields.io/badge/license-GPL%20v3.0-brightgreen.svg)](LICENSE)
+
 
 This action retrieves ASCII secrets from BeyondTrust Secrets Safe and makes them available in the GitHub action workflow. The secrets are requested using either a Secrets Safe path or a path to a managed account which is composed of a managed system and account. The action output returns the secrets with an ID specified in the action request. This allows immediate retrieval and usage of secrets from your BeyondTrust Secrets Safe instance. Retrieved secrets are masked on the GitHub runner used to retrieve the secret. This helps reduce the chance that secrets are printed or logged by accident.
 
@@ -117,3 +122,6 @@ Copy the text from the ps_cert.pem to a secret.
 ... 
 -----END CERTIFICATE-----
 ```
+
+## Get Help
+- Contact [BeyondTrust support](https://www.beyondtrust.com/docs/index.htm#support)

@@ -6,4 +6,4 @@ GitHub retrieve secret action 1.0 release.
  
 ### Added
 - Version [v1.0.0]
-  Released on GitHub.
+  Released on GitHub marketplace.
