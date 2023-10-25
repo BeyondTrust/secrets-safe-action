@@ -124,6 +124,13 @@ def get_secrets(secret_obj, secrets):
         show_error("The Secrets Safe action can request a maximum of 20 secrets and 20 managed accounts each run")
 
     for secret_to_retrieve in secrets_to_retrive:
+        
+        if 'path' not in secret_to_retrieve:
+            show_error(f"Invalid JSON, validate path attribute name")
+        
+        if 'output_id' not in secret_to_retrieve:
+            show_error(f"Invalid JSON, validate output_id attribute name")
+
         get_secret_response = secret_obj.get_secret(secret_to_retrieve['path'])
         mask_secret("add-mask", get_secret_response)
         append_output(secret_to_retrieve['output_id'], get_secret_response)
