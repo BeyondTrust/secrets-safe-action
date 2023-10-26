@@ -42,8 +42,10 @@ logger = logging.getLogger(LOGGER_NAME)
 CERTIFICATE = env['CERTIFICATE'].replace(r'\n', '\n') if 'CERTIFICATE' in env else None
 CERTIFICATE_KEY = env['CERTIFICATE_KEY'].replace(r'\n', '\n') if 'CERTIFICATE_KEY' in env else None
 
-CERTIFICATE = f"{CERTIFICATE}\n"
-CERTIFICATE_KEY = f"{CERTIFICATE_KEY}\n"
+if CERTIFICATE:
+    CERTIFICATE = f"{CERTIFICATE}\n"
+if CERTIFICATE_KEY:
+    CERTIFICATE_KEY = f"{CERTIFICATE_KEY}\n"
 
 COMMAND_MARKER: str = "::"
 
