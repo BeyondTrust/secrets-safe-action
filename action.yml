@@ -60,5 +60,5 @@ runs:
     - ${{ inputs.log_level }}
     - ${{ inputs.path_separator }}
 branding:
-  icon: 'circle'
+  icon: 'lock'
   color: 'orange'
