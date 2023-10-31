@@ -15,6 +15,8 @@ The Secrets Safe action supports retrieval of secrets from BeyondInsight/Passwor
 
 For this extension to retrieve a secret the Secrets Safe instance must be preconfigured with the secret in question and must be authorized to read it.
 
+Runners must use a Linux operating system. Additionally, self-hosted runners will need Docker installed.
+
 ## Inputs
 
 ### `client_id`
@@ -23,7 +25,7 @@ For this extension to retrieve a secret the Secrets Safe instance must be precon
 
 ### `client_secret`
 
-**Required** API OAuth Client Secret.
+**Required:** API OAuth Client Secret.
 
 ### `api_url`
 
@@ -77,6 +79,12 @@ Indicates whether to verify the certificate authority on the Secrets Safe instan
 ```
 VERIFY_CA: true
 ```
+Warning: false is insecure, instructs the Secrets Safe custom action not to verify the certificate authority.
+
+### log_level
+Level of logging verbosity. Default INFO.
+
+Levels: CRITICAL, FATAL, ERROR, WARNING, WARN, INFO, DEBUG, NOTSET
 
 ## Outputs
 
