@@ -7,12 +7,7 @@ ENV PYTHONUNBUFFERED=1
 
 RUN python -m pip install --upgrade pip
 
-RUN apt-get update \
- && DEBIAN_FRONTEND=noninteractive \
-    apt-get install --no-install-recommends --assume-yes \
-      a-package \
-      another-package \
-      more-packages
+RUN apt-get update && apt-get -y upgrade
 
 WORKDIR /usr/src/app
 
