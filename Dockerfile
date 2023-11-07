@@ -7,6 +7,8 @@ ENV PYTHONUNBUFFERED=1
 
 RUN python -m pip install --upgrade pip
 
+RUN apt-get upgrade -y
+
 WORKDIR /usr/src/app
 
 # Installing requirements from requirements.txt file
