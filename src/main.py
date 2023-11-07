@@ -11,7 +11,7 @@ env = os.environ
 CLIENT_ID = env["CLIENT_ID"] if 'CLIENT_ID' in env else None
 CLIENT_SECRET = env["CLIENT_SECRET"] if 'CLIENT_SECRET' in env else None
 API_URL = env["API_URL"] if 'API_URL' in env else None
-VERIFY_CA = True if 'VERIFY_CA' in env and env['VERIFY_CA'].lower() == 'true' else False
+VERIFY_CA = False if 'VERIFY_CA' in env and env['VERIFY_CA'].lower() == 'false' else True
 
 SECRET_PATH = env['INPUT_SECRET_PATH'].strip() if 'INPUT_SECRET_PATH' in env else None
 MANAGED_ACCOUNT_PATH = env['INPUT_MANAGED_ACCOUNT_PATH'].strip() if 'INPUT_MANAGED_ACCOUNT_PATH' in env else None
