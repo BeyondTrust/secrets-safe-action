@@ -7,7 +7,7 @@ ENV PYTHONUNBUFFERED=1
 
 RUN python -m pip install --upgrade pip
 
-RUN apt-get update && apt-get -y upgrade
+RUN apk update && apk upgrade -i -a --update-cache
 
 WORKDIR /usr/src/app
 
