@@ -3,8 +3,9 @@ import sys
 import uuid
 import logging
 import json
+import secrets_safe_library
 
-from secrets_safe_library import secrets, secrets_safe, authentication, utils, managed_account
+from secrets_safe_library import secrets_safe, authentication, utils, managed_account
 from github_action_utils import error
 
 env = os.environ
@@ -149,6 +150,8 @@ def main():
                                                     logger)
         
         get_api_access_response = authentication_obj.get_api_access()
+        
+        utils.print_log(logger, f"{secrets_safe_library.__library_name__} version: {secrets_safe_library.__version__}", logging.DEBUG)
         
         if get_api_access_response.status_code != 200:
             error_message = f"Please check credentials, error {get_api_access_response.text}"
