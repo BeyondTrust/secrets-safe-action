@@ -81,7 +81,7 @@ VERIFY_CA: true
 ```
 Warning: false is insecure, instructs the Secrets Safe custom action not to verify the certificate authority.
 
-### log_level
+### `log_level`
 Level of logging verbosity. Default INFO.
 
 Levels: CRITICAL, FATAL, ERROR, WARNING, WARN, INFO, DEBUG, NOTSET
