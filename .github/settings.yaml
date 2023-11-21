@@ -1,0 +1,4 @@
+_extends: .github
+repository:
+  private: false
+
