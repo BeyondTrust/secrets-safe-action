@@ -47,7 +47,7 @@ outputs:
     description: 'The action stores the retrieved secrets in output variables defined by the end user. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.'
 runs:
   using: 'docker'
-  image: 'docker://beyondtrust/secrets-github-action:0.0.2'
+  image: 'docker://beyondtrust/secrets-github-action:0.0.3'
   args:
     - ${{ inputs.client_id }}
     - ${{ inputs.client_secret }}
