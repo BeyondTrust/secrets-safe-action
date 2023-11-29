@@ -1,9 +1,9 @@
 # Change Log
  
-## [v1.0.0] - 2023-12-15
+## [v1.0.0] - 2023-11-30
  
 GitHub retrieve secret action 1.0 release.
  
 ### Added
 - Version [v1.0.0]
-  Released on GitHub marketplace.
+  Adds the ability to retrieve managed accounts and secrets safe ASCII secrets in a GitHub workflow using Linux runners.
