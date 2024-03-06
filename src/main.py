@@ -4,6 +4,8 @@ import uuid
 import logging
 import json
 import secrets_safe_library
+import requests
+from retry_requests import retry
 
 from secrets_safe_library import secrets_safe, authentication, utils, managed_account
 from github_action_utils import error
@@ -39,14 +41,10 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(LOGGER_NAME)
-
+TIMEOUT_CONNECTION_SECONDS = 30
+TIMEOUT_REQUEST_SECONDS = 30
 CERTIFICATE = env['CERTIFICATE'].replace(r'\n', '\n') if 'CERTIFICATE' in env else None
 CERTIFICATE_KEY = env['CERTIFICATE_KEY'].replace(r'\n', '\n') if 'CERTIFICATE_KEY' in env else None
-
-if CERTIFICATE:
-    CERTIFICATE = f"{CERTIFICATE}\n"
-if CERTIFICATE_KEY:
-    CERTIFICATE_KEY = f"{CERTIFICATE_KEY}\n"
 
 COMMAND_MARKER: str = "::"
 
@@ -140,35 +138,45 @@ def get_secrets(secret_obj, secrets):
     
 
 def main():
-    try:
-        authentication_obj = authentication.Authentication(API_URL, 
-                                                    CLIENT_ID, 
-                                                    CLIENT_SECRET,
-                                                    CERTIFICATE,
-                                                    CERTIFICATE_KEY,
-                                                    VERIFY_CA,
-                                                    logger)
-        
-        get_api_access_response = authentication_obj.get_api_access()
-        
-        utils.print_log(logger, f"{secrets_safe_library.__library_name__} version: {secrets_safe_library.__version__}", logging.DEBUG)
-        
-        if get_api_access_response.status_code != 200:
-            error_message = f"Please check credentials, error {get_api_access_response.text}"
-            show_error(error_message)
-        
-        if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
-            error_message = f"Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
-            show_error(error_message)
+    try:       
+        with requests.Session() as session:
+            req = retry(session, retries=3, backoff_factor=0.2, status_to_retry=(400,408,500,502,503,504))
+            
+            certificate, certificate_key = utils.prepare_certificate_info(CERTIFICATE, CERTIFICATE_KEY)
 
-        if SECRET_PATH:
-            secrets_safe_obj = secrets_safe.SecretsSafe(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
-            get_secrets(secrets_safe_obj, SECRET_PATH)
+            authentication_obj = authentication.Authentication(
+                req,
+                TIMEOUT_CONNECTION_SECONDS,
+                TIMEOUT_REQUEST_SECONDS,
+                API_URL, 
+                CLIENT_ID, 
+                CLIENT_SECRET,
+                certificate,
+                certificate_key,
+                VERIFY_CA,
+                logger)
+            
+            get_api_access_response = authentication_obj.get_api_access()
         
-        if MANAGED_ACCOUNT_PATH:
-            managed_account_obj = managed_account.ManagedAccount(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
-            get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
+            utils.print_log(logger, f"{secrets_safe_library.__library_name__} version: {secrets_safe_library.__version__}", logging.DEBUG)
+            
+            if get_api_access_response.status_code != 200:
+                error_message = f"Please check credentials, error {get_api_access_response.text}"
+                show_error(error_message)
+            
+            if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
+                error_message = f"Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
+                show_error(error_message)
 
+            if SECRET_PATH:
+                secrets_safe_obj = secrets_safe.SecretsSafe(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
+                get_secrets(secrets_safe_obj, SECRET_PATH)
+            
+            if MANAGED_ACCOUNT_PATH:
+                managed_account_obj = managed_account.ManagedAccount(authentication=authentication_obj, logger=logger, separator=PATH_SEPARATOR)
+                get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
+
+            authentication_obj.sign_app_out()
 
     except Exception as e:
         show_error(e)
