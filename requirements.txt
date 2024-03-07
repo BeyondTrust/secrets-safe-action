@@ -1,4 +1,4 @@
-pyOpenSSL==23.2.0
+pyOpenSSL==24.0.0
 retry-requests==2.0.0
 github_action_utils==1.1.0
 coverage==7.3.1
