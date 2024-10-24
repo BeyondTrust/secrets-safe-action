@@ -11,6 +11,7 @@ from secrets_safe_library import secrets_safe, authentication, utils, managed_ac
 from github_action_utils import error
 
 env = os.environ
+API_KEY = env.get("API_KEY")
 CLIENT_ID = env["CLIENT_ID"] if 'CLIENT_ID' in env else None
 CLIENT_SECRET = env["CLIENT_SECRET"] if 'CLIENT_SECRET' in env else None
 API_URL = env["API_URL"] if 'API_URL' in env else None
@@ -144,18 +145,27 @@ def main():
             
             certificate, certificate_key = utils.prepare_certificate_info(CERTIFICATE, CERTIFICATE_KEY)
 
-            authentication_obj = authentication.Authentication(
-                req,
-                TIMEOUT_CONNECTION_SECONDS,
-                TIMEOUT_REQUEST_SECONDS,
-                API_URL, 
-                CLIENT_ID, 
-                CLIENT_SECRET,
-                certificate,
-                certificate_key,
-                VERIFY_CA,
-                logger)
-            
+            auth_config = {
+                "req": req,
+                "timeout_connection": TIMEOUT_CONNECTION_SECONDS,
+                "timeout_request": TIMEOUT_REQUEST_SECONDS,
+                "api_url": API_URL,
+                "certificate": certificate,
+                "certificate_key": certificate_key,
+                "verify_ca": True,
+                "logger": logger
+            }
+
+            # If API_KEY is set, we're using API Key authentication
+            # otherwise we're using OAuth/Client Credentials.
+            if API_KEY:
+                auth_config.update({"api_key": API_KEY})
+            else:
+                auth_config.update(
+                    {"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET}
+                )
+
+            authentication_obj = authentication.Authentication(**auth_config)
             get_api_access_response = authentication_obj.get_api_access()
         
             utils.print_log(logger, f"{secrets_safe_library.__library_name__} version: {secrets_safe_library.__version__}", logging.DEBUG)
