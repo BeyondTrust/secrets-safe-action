@@ -19,6 +19,10 @@ Runners must use a Linux operating system. Additionally, self-hosted runners wil
 
 ## Inputs
 
+### `api_key`
+
+**Optional:** The API Key configured in BeyondInsight for your application. If not set, then client credentials must be provided.
+
 ### `client_id`
 
 **Required:** API OAuth Client ID.
@@ -31,7 +35,7 @@ Runners must use a Linux operating system. Additionally, self-hosted runners wil
 
 **Required:** BeyondTrust Password Safe API URL.
 ```
-https://example.com:443/beyondtrust/api/public/V3
+https://example.com:443/BeyondTrust/api/public/v3
 ```
 
 ### `secret_path`
