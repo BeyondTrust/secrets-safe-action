@@ -2,13 +2,17 @@ name: 'Secrets Safe Action'
 author: 'BeyondTrust Corporation'
 description: 'This custom action allows for the retrieval of ASCII secrets from an instance of Secrets Safe.'
 inputs:
+  api_key:
+    description: 'The API Key configured in BeyondInsight for your application. If not set, then client credentials must be provided.'
+    required: false
+    default: ''
   client_id:
     description: 'The API OAuth Client ID is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe'
-    required: true
+    required: false
     default: ''
   client_secret:
     description: 'The API OAuth Client Secret is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe.'
-    required: true
+    required: false
     default: ''
   api_url:
     description: 'The API URL for the Secrets Safe instance from which to request a secret.'
@@ -47,8 +51,9 @@ outputs:
     description: 'The action stores the retrieved secrets in output variables defined by the end user. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.'
 runs:
   using: 'docker'
-  image: 'docker://beyondtrust/secrets-github-action:1.0.1'
+  image: 'Dockerfile'
   args:
+    - ${{ inputs.api_key }}
     - ${{ inputs.client_id }}
     - ${{ inputs.client_secret }}
     - ${{ inputs.api_url }}

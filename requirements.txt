@@ -1,6 +1,4 @@
 requests==2.32.3
 retry-requests==2.0.0
 github_action_utils==1.1.0
-coverage==7.3.1
-cryptography==43.0.1
-my-secrets-safe-library==2.0
+beyondtrust-bips-library~=1.0
