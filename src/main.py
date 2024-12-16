@@ -117,8 +117,7 @@ def show_error(error_message: str) -> None:
 
 
 def get_secrets(
-    secret_obj: authentication.Authentication | secrets_safe.SecretsSafe,
-    secrets: str
+    secret_obj: authentication.Authentication | secrets_safe.SecretsSafe, secrets: str
 ) -> None:
     """
     Retrieves secrets using the provided secret object and a JSON string of
@@ -205,7 +204,8 @@ def main() -> None:
 
             utils.print_log(
                 logger,
-                f"{secrets_safe_library.__library_name__} version: {secrets_safe_library.__version__}",
+                f"{secrets_safe_library.__library_name__} "
+                f"version: {secrets_safe_library.__version__}",
                 logging.DEBUG,
             )
 
