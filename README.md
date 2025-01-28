@@ -38,6 +38,10 @@ Runners must use a Linux operating system. Additionally, self-hosted runners wil
 https://example.com:443/BeyondTrust/api/public/v3
 ```
 
+### `api_version`
+
+**Optional:** The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used
+
 ### `secret_path`
 **Required:** Path of the secret to retrieve.
 ```json
@@ -108,6 +112,7 @@ env:
   CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
   CERTIFICATE: ${{secrets.CERTIFICATE}}
   CERTIFICATE_KEY: ${{secrets.CERTIFICATE_KEY}}
+  API_VERSION: ${{vars.API_VERSION}}
 with:
   SECRET_PATH: '{"path": "folder1/folder2/title", "output_id": "title"}'
   MANAGED_ACCOUNT_PATH: '{"path": "system/account", "output_id": "account"}'

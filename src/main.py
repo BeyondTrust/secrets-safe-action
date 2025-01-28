@@ -16,6 +16,7 @@ API_KEY = env.get("API_KEY")
 CLIENT_ID = env.get("CLIENT_ID")
 CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
+API_VERSION = env.get("API_VERSION")
 VERIFY_CA = env.get("VERIFY_CA", "true").lower() != "false"
 
 SECRET_PATH = env.get("INPUT_SECRET_PATH", "").strip() or None
@@ -189,6 +190,11 @@ def main() -> None:
                 "verify_ca": VERIFY_CA,
                 "logger": logger,
             }
+
+            # The recommended version is 3.1. If no version is specified, 
+            # the default API version 3.0 will be used
+            if API_VERSION:
+                auth_config.update({"api_version": API_VERSION})
 
             # If API_KEY is set, we're using API Key authentication
             # otherwise we're using OAuth/Client Credentials.

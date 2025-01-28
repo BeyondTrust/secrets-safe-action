@@ -6,6 +6,10 @@ inputs:
     description: 'The API Key configured in BeyondInsight for your application. If not set, then client credentials must be provided.'
     required: false
     default: ''
+  api_version:
+    description: 'The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used.'
+    required: false
+    default: ''
   client_id:
     description: 'The API OAuth Client ID is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe'
     required: false
@@ -54,6 +58,7 @@ runs:
   image: 'Dockerfile'
   args:
     - ${{ inputs.api_key }}
+    - ${{ inputs.api_version }}
     - ${{ inputs.client_id }}
     - ${{ inputs.client_secret }}
     - ${{ inputs.api_url }}
