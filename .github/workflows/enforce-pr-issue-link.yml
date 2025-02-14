@@ -1,0 +1,14 @@
+name: PR/item link check
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - edited
+      - synchronize
+
+jobs:
+  call-workflow:
+    if: ${{ github.actor != 'dependabot[bot]' && github.actor != 'beyondtrust-release-app[bot]' }}
+    uses: BeyondTrust/beyondinsight-actions/.github/workflows/enforce-pr-issue-link.yml@main

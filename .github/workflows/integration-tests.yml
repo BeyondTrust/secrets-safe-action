@@ -1,0 +1,38 @@
+name: Integration Tests
+
+env:
+  SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+  push:
+    tags:
+      - 'v*'
+    branches:
+    - main
+  workflow_dispatch: 
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: Setting up environment
+        run: |
+          pip install -r requirements-dev.txt
+      
+      - name: Running integration tests
+        run: |
+          python3 -m coverage run -m unittest discover tests/integration -v -p 'test_*.py'
+          python3 -m coverage report
+          python3 -m coverage xml
