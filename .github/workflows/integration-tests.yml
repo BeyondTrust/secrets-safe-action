@@ -1,0 +1,47 @@
+name: Integration Tests
+
+env:
+  SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    tags:
+      - 'v*'
+    branches:
+    - main
+  workflow_dispatch: 
+
+permissions:
+  contents: write
+  pull-requests: write  
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref }}
+
+      - name: Setting up environment
+        run: |
+          pip install -r requirements-dev.txt
+      
+      - name: Running integration tests
+        run: |
+          python3 -m coverage run -m unittest discover tests/unit -v -p 'test_*.py'
+          python3 -m coverage report
+          python3 -m coverage xml
+
+      - name: Check coverage and publish report in the PR
+        uses: orgoro/coverage@v3.2
+        with:
+            coverageFile: coverage.xml
+            token: ${{ secrets.GITHUB_TOKEN }}
+            thresholdAll: 0.8
+            thresholdNew: 0.85

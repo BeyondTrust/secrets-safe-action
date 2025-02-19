@@ -191,7 +191,7 @@ def main() -> None:
                 "logger": logger,
             }
 
-            # The recommended version is 3.1. If no version is specified, 
+            # The recommended version is 3.1. If no version is specified,
             # the default API version 3.0 will be used
             if API_VERSION:
                 auth_config.update({"api_version": API_VERSION})
