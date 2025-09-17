@@ -1,0 +1,49 @@
+# Workflow name!
+name: 'wiz-cli'
+
+# Events that trigger this workflow:
+# - When a pull request is opened or updated
+# - When manually triggered via the GitHub Actions UI
+# - On a weekly schedule (every Sunday at midnight)
+on:
+  pull_request: {}
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions: {}
+
+jobs:
+  wiz-cli-iac-scan:
+    name: 'Wiz-cli IaC Scan'
+    runs-on: ubuntu-latest
+
+    # Environment variables used across the job
+    env:
+      SCAN_PATH: "."
+      POLICY: "Audit IaC policy"
+
+    # Set permissions for GitHub token
+    permissions:
+      security-events: write  # Needed to upload SARIF results to GitHub Security tab
+      contents: read          # Allows the job to read repo content
+      actions: write          # Allows the job to trigger or interact with actions
+
+    # Default shell for all steps in this job
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+    # Step 1: Checkout the repository code
+    - name: Check out repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for accurate scan results
+
+    # Step 2: Run Wiz CLI
+    - name: Run WizCLI
+      uses: BeyondTrust/wiz-iac-scan-action@0429602a8db7783139e3f092ba276040203ef095 # v1.0.0
+      with:
+        wiz_client_id: ${{ secrets.WIZ_CLIENT_ID }}
+        wiz_client_secret: ${{ secrets.WIZ_CLIENT_SECRET }}
