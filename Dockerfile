@@ -19,12 +19,11 @@ RUN mkdir -p /usr/src/app && chown -R appuser:appgroup /usr/src/app
 WORKDIR /usr/src/app
 
 # Installing requirements from requirements.txt file (as root for global installation)
-COPY requirements.txt .
+COPY --chown=appuser:appgroup requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source files and set proper ownership
-COPY src/ .
-RUN chown -R appuser:appgroup /usr/src/app
+COPY --chown=appuser:appgroup src/ .
 
 # Switch to non-root user
 USER appuser
