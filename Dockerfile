@@ -9,12 +9,24 @@ RUN python -m pip install --upgrade pip
 
 RUN apk update && apk upgrade -i -a --update-cache
 
+# Create a non-root user
+RUN addgroup -g 1001 appgroup && \
+    adduser -u 1001 -G appgroup -s /bin/sh -D appuser
+
+# Create and set ownership of the working directory
+RUN mkdir -p /usr/src/app && chown -R appuser:appgroup /usr/src/app
+
 WORKDIR /usr/src/app
 
-# Installing requirements from requirements.txt file
+# Installing requirements from requirements.txt file (as root for global installation)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy source files and set proper ownership
 COPY src/ .
+RUN chown -R appuser:appgroup /usr/src/app
+
+# Switch to non-root user
+USER appuser
 
 ENTRYPOINT ["python", "/usr/src/app/main.py"]
