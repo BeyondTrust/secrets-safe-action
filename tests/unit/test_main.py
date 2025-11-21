@@ -150,7 +150,7 @@ class TestMain(unittest.TestCase):
     @patch("src.main.append_output")
     @patch("src.main.mask_secret")
     def test_get_secrets_type_error(self, mock_mask, mock_append, mock_show_error):
-        """Test get_secrets with Type error"""
+        """Test get_secrets with TypeError"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
         mock_show_error.side_effect = SystemExit(1)
 
