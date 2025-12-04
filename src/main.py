@@ -176,6 +176,12 @@ def main() -> None:
                 "Starting Secrets Safe - Create Secret Operation",
                 logging.DEBUG,
             )
+        elif OPERATION == "GET_SECRET":
+            utils.print_log(
+                logger,
+                "Starting Secrets Safe - Get Secret Operation",
+                logging.DEBUG,
+            )
         with requests.Session() as session:
             req = retry(
                 session,

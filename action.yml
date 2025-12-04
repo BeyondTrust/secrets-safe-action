@@ -73,6 +73,7 @@ runs:
     - ${{ inputs.managed_account_path }}
     - ${{ inputs.log_level }}
     - ${{ inputs.path_separator }}
+    - ${{ inputs.operation }}
 branding:
   icon: 'lock'
   color: 'orange'
