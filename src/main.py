@@ -25,6 +25,8 @@ path_sep = env.get("PATH_SEPARATOR", "/").strip()
 PATH_SEPARATOR = path_sep if len(path_sep) == 1 else "/"
 MAX_SECRETS_TO_RETRIEVE = 20
 
+OPERATION = env.get("INPUT_OPERATION", "CREATE_SECRET").strip().upper()
+
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
 LOG_LEVELS = {
@@ -168,6 +170,12 @@ def get_secrets(
 
 def main() -> None:
     try:
+        if OPERATION == "CREATE_SECRET":
+            utils.print_log(
+                logger,
+                "Starting Secrets Safe - Create Secret Operation",
+                logging.DEBUG,
+            )
         with requests.Session() as session:
             req = retry(
                 session,
