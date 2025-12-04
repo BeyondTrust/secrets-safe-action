@@ -74,6 +74,9 @@ runs:
     - ${{ inputs.log_level }}
     - ${{ inputs.path_separator }}
     - ${{ inputs.operation }}
+    - ${{ inputs.secret_title }}
+    - ${{ inputs.secret_description }}
+    - ${{ inputs.username }}
 branding:
   icon: 'lock'
   color: 'orange'
