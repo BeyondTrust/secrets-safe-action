@@ -34,10 +34,10 @@ FILE_CONTENT = env.get("INPUT_FILE_CONTENT", "").strip()
 FILE_NAME = env.get("INPUT_FILE_NAME", "").strip()
 OWNER_ID = env.get("INPUT_OWNER_ID", "").strip()
 OWNER_TYPE = env.get("INPUT_OWNER_TYPE", "").strip()
-OWNERS = env.get("INPUT_OWNERS", []).strip()
+OWNERS = env.get("INPUT_OWNERS", [])
 PASSWORD_RULE_ID = env.get("INPUT_PASSWORD_RULE_ID", "").strip()
 NOTES = env.get("INPUT_NOTES", "").strip()
-URLS = env.get("INPUT_URLS", []).strip()
+URLS = env.get("INPUT_URLS", [])
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
