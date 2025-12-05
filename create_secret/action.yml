@@ -80,7 +80,8 @@ runs:
     - ${{ inputs.username }}
     - ${{ inputs.password }}
     - ${{ inputs.text }}
-    - ${{ inputs.file_path }}
+    - ${{ inputs.file_content }}
+    - ${{ inputs.file_name }}
     - ${{ inputs.owner_id }}
     - ${{ inputs.owner_type }}
     - ${{ inputs.owners }}
