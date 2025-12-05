@@ -8,7 +8,7 @@ import requests
 import secrets_safe_library
 from github_action_utils import error
 from retry_requests import retry
-from secrets_safe_library import authentication, managed_account, secrets_safe, utils
+from secrets_safe_library import authentication, managed_account, secrets_safe, utils, exceptions, folders
 
 env = os.environ
 
@@ -26,9 +26,19 @@ PATH_SEPARATOR = path_sep if len(path_sep) == 1 else "/"
 MAX_SECRETS_TO_RETRIEVE = 20
 
 OPERATION = env.get("INPUT_OPERATION", "CREATE_SECRET").strip().upper()
-SECRET_TITLE = env.get("INPUT_SECRET_TITLE", "").strip()
-SECRET_DESCRIPTION = env.get("INPUT_SECRET_DESCRIPTION", "").strip()
+TITLE = env.get("INPUT_TITLE", "").strip()
+PARENT_FOLDER_NAME = env.get("INPUT_PARENT_FOLDER_NAME", "").strip()
+DESCRIPTION = env.get("INPUT_DESCRIPTION", "").strip()
 USERNAME = env.get("INPUT_USERNAME", "").strip()
+PASSWORD = env.get("INPUT_PASSWORD", "").strip()
+TEXT = env.get("INPUT_TEXT", "").strip()
+FILE_PATH = env.get("INPUT_FILE_PATH", "").strip()
+OWNER_ID = env.get("INPUT_OWNER_ID", "").strip()
+OWNER_TYPE = env.get("INPUT_OWNER_TYPE", "").strip()
+OWNERS = env.get("INPUT_OWNERS", "").strip()
+PASSWORD_RULE_ID = env.get("INPUT_PASSWORD_RULE_ID", "").strip()
+NOTES = env.get("INPUT_NOTES", "").strip()
+URLS = env.get("INPUT_URLS", "").strip()
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
@@ -173,24 +183,12 @@ def get_secrets(
 
 def main() -> None:
     try:
-        if OPERATION == "CREATE_SECRET":
-            utils.print_log(
-                logger,
-                "Starting Secrets Safe - Create Secret Operation",
-                logging.DEBUG,
-            )
-        elif OPERATION == "GET_SECRET":
-            utils.print_log(
-                logger,
-                "Starting Secrets Safe - Get Secret Operation",
-                logging.DEBUG,
-            )
-        
+
         utils.print_log(
                 logger,
-                f"USERNAME {USERNAME}, SECRET_TITLE {SECRET_TITLE}, SECRET_DESCRIPTION {SECRET_DESCRIPTION}",
+                f"USERNAME {USERNAME}, SECRET_TITLE {TITLE}, SECRET_DESCRIPTION {DESCRIPTION}",
                 logging.DEBUG,
-            )   
+            )
         with requests.Session() as session:
             req = retry(
                 session,
@@ -244,33 +242,90 @@ def main() -> None:
                 )
                 show_error(error_message)
 
-            if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
-                error_message = (
-                    "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
-                )
-                show_error(error_message)
-
-            if SECRET_PATH:
-                secrets_safe_obj = secrets_safe.SecretsSafe(
+            secrets_safe_obj = secrets_safe.SecretsSafe(
                     authentication=authentication_obj,
                     logger=logger,
                     separator=PATH_SEPARATOR,
                 )
-                get_secrets(secrets_safe_obj, SECRET_PATH)
 
-            if MANAGED_ACCOUNT_PATH:
-                managed_account_obj = managed_account.ManagedAccount(
-                    authentication=authentication_obj,
-                    logger=logger,
-                    separator=PATH_SEPARATOR,
-                )
-                get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
+            if OPERATION == "GET_SECRET":
+                if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
+                    error_message = (
+                        "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
+                    )
+                    show_error(error_message)
+
+                if SECRET_PATH:
+                    get_secrets(secrets_safe_obj, SECRET_PATH)
+
+                if MANAGED_ACCOUNT_PATH:
+                    managed_account_obj = managed_account.ManagedAccount(
+                        authentication=authentication_obj,
+                        logger=logger,
+                        separator=PATH_SEPARATOR,
+                    )
+                    get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
+
+            if OPERATION == "CREATE_SECRET":
+                try:
+
+                    # instantiate folders obj
+                    folders_obj = folders.Folder(
+                        authentication=authentication_obj, logger=logger
+                    )
+
+                    folder = get_folder(folders_obj, PARENT_FOLDER_NAME)
+                    if not folder:
+                        show_error("Parent Folder name was not found")
+
+                    # creating secret
+                    secrets_safe_obj.create_secret(
+                        title=TITLE,
+                        folder_id=folder["Id"],
+                        description=DESCRIPTION,
+                        username=USERNAME,
+                        password=PASSWORD,
+                        text=TEXT,
+                        file_path=FILE_PATH,
+                        owner_id=int(OWNER_ID) if OWNER_ID else None,
+                        owner_type=OWNER_TYPE,
+                        owners=json.loads(OWNERS) if OWNERS else None,
+                        password_rule_id=int(PASSWORD_RULE_ID) if PASSWORD_RULE_ID else None,
+                        notes=NOTES,
+                        urls=json.loads(URLS) if URLS else None,
+                    )
+                except exceptions.CreationError as e:
+                    show_error(f"Error creating secret: {e}")
+
+                except (exceptions.OptionsError, exceptions.IncompleteArgumentsError) as e:
+                    show_error(f"Invalid or missing parameters: {e}")
+
+                except FileNotFoundError as e:
+                    show_error(f"Invalid or missing file path: {e}")
 
             authentication_obj.sign_app_out()
 
     except Exception as e:
         show_error(e)
 
+def get_folder(folders_obj, folder_name: str):
+    """
+    Get folder by folder name.
+
+    Args:
+        folders_obj(folders.Folder): Instance of the Folders object from the PS library,
+            used for folder management.
+        folder_name(str): The name of the folder to search for.
+    Returns:
+        folders.Folder: Found folder object.
+    """
+    folder_list = folders_obj.list_folders(folder_name=folder_name)
+    matched_folders = [x for x in folder_list if x["Name"] == folder_name]
+
+    if not matched_folders:
+        return None
+
+    return matched_folders[0]
 
 if __name__ == "__main__":
     main()
