@@ -184,6 +184,7 @@ def get_secrets(
 def main() -> None:
     try:
         utils.print_log(logger, "*********** GET SECRET ****************", logging.DEBUG)
+        """
         utils.print_log(
                 logger,
                 f"USERNAME {USERNAME}, SECRET_TITLE {TITLE}, SECRET_DESCRIPTION {DESCRIPTION}",
@@ -304,6 +305,7 @@ def main() -> None:
                     show_error(f"Invalid or missing file path: {e}")
 
             authentication_obj.sign_app_out()
+        """
 
     except Exception as e:
         show_error(e)
