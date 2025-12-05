@@ -183,7 +183,7 @@ def get_secrets(
 
 def main() -> None:
     try:
-
+        utils.print_log(logger, "*********** GET SECRET ****************", logging.DEBUG)
         utils.print_log(
                 logger,
                 f"USERNAME {USERNAME}, SECRET_TITLE {TITLE}, SECRET_DESCRIPTION {DESCRIPTION}",
