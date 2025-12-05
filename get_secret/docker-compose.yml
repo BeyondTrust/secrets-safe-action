@@ -1,0 +1,25 @@
+version: "3.8"
+services:
+  secrets_safe_action:
+    build:
+      context: .
+    volumes:
+      - ./reports/:/output/
+    environment:
+      - API_URL=${API_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - CERTIFICATE=${CERTIFICATE}
+      - CERTIFICATE_KEY=${CERTIFICATE_KEY}
+      - VERIFY_CA=${VERIFY_CA}
+      - INPUT_MANAGED_ACCOUNT_PATH=${INPUT_MANAGED_ACCOUNT_PATH}
+      - MANAGED_ACCOUNT_LIST=${MANAGED_ACCOUNT_LIST}
+      - PATH_SEPARATOR=${PATH_SEPARATOR}
+      - GITHUB_OUTPUT=${GITHUB_OUTPUT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - AHEAD_TIME_IN_MINUTES=${AHEAD_TIME_IN_MINUTES}
+      - AHEAD_TIME_IN_HOURS=${AHEAD_TIME_IN_HOURS}
+      - GET_METRIC_EVERY_SECONDS=${GET_METRIC_EVERY_SECONDS}
+      - INPUT_SECRET_PATH=${INPUT_SECRET_PATH}
+      - API_VERSION=${API_VERSION}
+    container_name: secrets_safe_action
