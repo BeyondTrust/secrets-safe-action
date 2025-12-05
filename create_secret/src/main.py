@@ -19,8 +19,6 @@ API_URL = env.get("API_URL")
 API_VERSION = env.get("API_VERSION")
 VERIFY_CA = env.get("VERIFY_CA", "true").lower() != "false"
 
-SECRET_PATH = env.get("INPUT_SECRET_PATH", "").strip() or None
-MANAGED_ACCOUNT_PATH = env.get("INPUT_MANAGED_ACCOUNT_PATH", "").strip() or None
 path_sep = env.get("PATH_SEPARATOR", "/").strip()
 PATH_SEPARATOR = path_sep if len(path_sep) == 1 else "/"
 MAX_SECRETS_TO_RETRIEVE = 20
@@ -32,7 +30,8 @@ DESCRIPTION = env.get("INPUT_DESCRIPTION", "").strip()
 USERNAME = env.get("INPUT_USERNAME", "").strip()
 PASSWORD = env.get("INPUT_PASSWORD", "").strip()
 TEXT = env.get("INPUT_TEXT", "").strip()
-FILE_PATH = env.get("INPUT_FILE_PATH", "").strip()
+FILE_CONTENT = env.get("INPUT_FILE_CONTENT", "").strip()
+FILE_NAME = env.get("INPUT_FILE_NAME", "").strip()
 OWNER_ID = env.get("INPUT_OWNER_ID", "").strip()
 OWNER_TYPE = env.get("INPUT_OWNER_TYPE", "").strip()
 OWNERS = env.get("INPUT_OWNERS", "").strip()
@@ -130,66 +129,44 @@ def show_error(error_message: str) -> None:
     )
     utils.print_log(logger, error_message, logging.ERROR)
     sys.exit(1)
+    
 
-
-def get_secrets(
-    secret_obj: authentication.Authentication | secrets_safe.SecretsSafe, secrets: str
-) -> None:
+def create_file(file_name: str, content: str) -> str:
     """
-    Retrieves secrets using the provided secret object and a JSON string of
-    secrets. Output is appended to GITHUB_OUTPUT.
+    Creates a file in the current working directory and writes the provided content.
 
-    Arguments:
-        secret_obj (Authentication | SecretsSafe): An instance of either
-        Authentication or SecretsSafe class, handling secret operations.
-        secrets (str): A JSON string containing a list of secrets or managed
-        accounts.
+    :param filename: Name of the file to be created.
+    :param content: Text content to write into the file.
+    """
+    with open(file_name, "w", encoding="utf-8") as f:
+        f.write(content)
 
+def get_folder(folders_obj, folder_name: str):
+    """
+    Get folder by folder name.
+
+    Args:
+        folders_obj(folders.Folder): Instance of the Folders object from the PS library,
+            used for folder management.
+        folder_name(str): The name of the folder to search for.
     Returns:
-        None
+        folders.Folder: Found folder object.
     """
+    folder_list = folders_obj.list_folders(folder_name=folder_name)
+    matched_folders = [x for x in folder_list if x["Name"] == folder_name]
 
-    try:
-        secrets_to_retrive = json.loads(secrets)
-    except json.JSONDecodeError as e:
-        show_error(f"JSON object is not correctly formatted: {e}")
-    except TypeError as e:
-        show_error(f"Input is not a string, bytes or bytearray: {e}")
-    except Exception as e:
-        show_error(f"An unexpected error occurred: {e}")
+    if not matched_folders:
+        return None
 
-    if not isinstance(secrets_to_retrive, list):
-        secrets_to_retrive = [secrets_to_retrive]
-
-    if len(secrets_to_retrive) > MAX_SECRETS_TO_RETRIEVE:
-        show_error(
-            "The Secrets Safe action can request a maximum of "
-            f"{MAX_SECRETS_TO_RETRIEVE} secrets and "
-            f"{MAX_SECRETS_TO_RETRIEVE} managed accounts each run"
-        )
-
-    for secret_to_retrieve in secrets_to_retrive:
-        if "path" not in secret_to_retrieve:
-            show_error("Invalid JSON, validate path attribute name")
-
-        if "output_id" not in secret_to_retrieve:
-            show_error("Invalid JSON, validate output_id attribute name")
-
-        get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
-
-        mask_secret("add-mask", get_secret_response)
-        append_output(secret_to_retrieve["output_id"], get_secret_response)
+    return matched_folders[0]
 
 
 def main() -> None:
+    """
+    Get folder by folder name.
+    """
     try:
         utils.print_log(logger, "*********** CREATE SECRET ****************", logging.DEBUG)
-        """"
-        utils.print_log(
-                logger,
-                f"USERNAME {USERNAME}, SECRET_TITLE {TITLE}, SECRET_DESCRIPTION {DESCRIPTION}",
-                logging.DEBUG,
-            )
         with requests.Session() as session:
             req = retry(
                 session,
@@ -244,90 +221,49 @@ def main() -> None:
                 show_error(error_message)
 
             secrets_safe_obj = secrets_safe.SecretsSafe(
-                    authentication=authentication_obj,
-                    logger=logger,
-                    separator=PATH_SEPARATOR,
-                )
+                authentication=authentication_obj,
+                logger=logger,
+                separator=PATH_SEPARATOR,
+            )
 
-            if OPERATION == "GET_SECRET":
-                if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
-                    error_message = (
-                        "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
-                    )
-                    show_error(error_message)
+            # instantiate folders obj
+            folders_obj = folders.Folder(
+                authentication=authentication_obj, logger=logger
+            )
 
-                if SECRET_PATH:
-                    get_secrets(secrets_safe_obj, SECRET_PATH)
+            folder = get_folder(folders_obj, PARENT_FOLDER_NAME)
+            if not folder:
+                show_error("Parent Folder name was not found")
 
-                if MANAGED_ACCOUNT_PATH:
-                    managed_account_obj = managed_account.ManagedAccount(
-                        authentication=authentication_obj,
-                        logger=logger,
-                        separator=PATH_SEPARATOR,
-                    )
-                    get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
+            if FILE_CONTENT:
+                create_file(FILE_NAME, FILE_CONTENT)
 
-            if OPERATION == "CREATE_SECRET":
-                try:
+            # creating secret
+            secrets_safe_obj.create_secret(
+                title=TITLE,
+                folder_id=folder["Id"],
+                description=DESCRIPTION,
+                username=USERNAME,
+                password=PASSWORD,
+                text=TEXT,
+                file_path=FILE_NAME,
+                owner_id=int(OWNER_ID) if OWNER_ID else None,
+                owner_type=OWNER_TYPE,
+                owners=json.loads(OWNERS) if OWNERS else None,
+                password_rule_id=int(PASSWORD_RULE_ID) if PASSWORD_RULE_ID else None,
+                notes=NOTES,
+                urls=json.loads(URLS) if URLS else None,
+            )
+    except exceptions.CreationError as e:
+        show_error(f"Error creating secret: {e}")
 
-                    # instantiate folders obj
-                    folders_obj = folders.Folder(
-                        authentication=authentication_obj, logger=logger
-                    )
+    except (exceptions.OptionsError, exceptions.IncompleteArgumentsError) as e:
+        show_error(f"Invalid or missing parameters: {e}")
 
-                    folder = get_folder(folders_obj, PARENT_FOLDER_NAME)
-                    if not folder:
-                        show_error("Parent Folder name was not found")
+    except FileNotFoundError as e:
+        show_error(f"Invalid or missing file path: {e}")
 
-                    # creating secret
-                    secrets_safe_obj.create_secret(
-                        title=TITLE,
-                        folder_id=folder["Id"],
-                        description=DESCRIPTION,
-                        username=USERNAME,
-                        password=PASSWORD,
-                        text=TEXT,
-                        file_path=FILE_PATH,
-                        owner_id=int(OWNER_ID) if OWNER_ID else None,
-                        owner_type=OWNER_TYPE,
-                        owners=json.loads(OWNERS) if OWNERS else None,
-                        password_rule_id=int(PASSWORD_RULE_ID) if PASSWORD_RULE_ID else None,
-                        notes=NOTES,
-                        urls=json.loads(URLS) if URLS else None,
-                    )
-                except exceptions.CreationError as e:
-                    show_error(f"Error creating secret: {e}")
-
-                except (exceptions.OptionsError, exceptions.IncompleteArgumentsError) as e:
-                    show_error(f"Invalid or missing parameters: {e}")
-
-                except FileNotFoundError as e:
-                    show_error(f"Invalid or missing file path: {e}")
-
-            authentication_obj.sign_app_out()
-            """
-
-    except Exception as e:
-        show_error(e)
-
-def get_folder(folders_obj, folder_name: str):
-    """
-    Get folder by folder name.
-
-    Args:
-        folders_obj(folders.Folder): Instance of the Folders object from the PS library,
-            used for folder management.
-        folder_name(str): The name of the folder to search for.
-    Returns:
-        folders.Folder: Found folder object.
-    """
-    folder_list = folders_obj.list_folders(folder_name=folder_name)
-    matched_folders = [x for x in folder_list if x["Name"] == folder_name]
-
-    if not matched_folders:
-        return None
-
-    return matched_folders[0]
+    authentication_obj.sign_app_out()
 
 if __name__ == "__main__":
     main()
