@@ -19,7 +19,7 @@ CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
 API_VERSION = env.get("API_VERSION")
 VERIFY_CA = env.get("VERIFY_CA", "true").lower() != "false"
-DECRYPT = env.get("DECRYPT", "true").lower() != "false"
+DECRYPT = env.get("INPUT_DECRYPT", "true").lower() != "false"
 
 SECRET_PATH = env.get("INPUT_SECRET_PATH", "").strip() or None
 MANAGED_ACCOUNT_PATH = env.get("INPUT_MANAGED_ACCOUNT_PATH", "").strip() or None

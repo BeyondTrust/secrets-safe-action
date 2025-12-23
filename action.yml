@@ -51,7 +51,7 @@ inputs:
     required: false
     default: '/'
   decrypt:
-    description: 'Controls whether the password field is returned'
+    description: 'When true, returns the decrypted password field; when false, the password field is omitted'
     required: false
     default: 'true'
 outputs:
@@ -73,6 +73,7 @@ runs:
     - ${{ inputs.managed_account_path }}
     - ${{ inputs.log_level }}
     - ${{ inputs.path_separator }}
+    - ${{ inputs.decrypt }}
 branding:
   icon: 'lock'
   color: 'orange'
