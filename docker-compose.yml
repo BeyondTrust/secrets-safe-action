@@ -1,5 +1,6 @@
+version: "3.8"
 services:
-  get_secret_action:
+  secrets_safe_action:
     build:
       context: .
     volumes:
@@ -21,8 +22,8 @@ services:
       - GET_METRIC_EVERY_SECONDS=${GET_METRIC_EVERY_SECONDS}
       - INPUT_SECRET_PATH=${INPUT_SECRET_PATH}
       - API_VERSION=${API_VERSION}
-    container_name: get_secrets_safe_action
-  
+    container_name: secrets_safe_action
+
   tests:
     build: .
-    command: python -m pytest -v /usr/src/app/tests/
+    command:  python -m pytest -v /usr/src/app/tests/

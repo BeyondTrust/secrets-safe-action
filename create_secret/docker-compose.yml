@@ -1,6 +1,6 @@
 version: "3.8"
 services:
-  secrets_safe_action:
+  create_secret_action:
     build:
       context: .
     volumes:
@@ -9,17 +9,30 @@ services:
       - API_URL=${API_URL}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
-      - CERTIFICATE=${CERTIFICATE}
-      - CERTIFICATE_KEY=${CERTIFICATE_KEY}
       - VERIFY_CA=${VERIFY_CA}
-      - INPUT_MANAGED_ACCOUNT_PATH=${INPUT_MANAGED_ACCOUNT_PATH}
-      - MANAGED_ACCOUNT_LIST=${MANAGED_ACCOUNT_LIST}
-      - PATH_SEPARATOR=${PATH_SEPARATOR}
       - GITHUB_OUTPUT=${GITHUB_OUTPUT}
       - LOG_LEVEL=${LOG_LEVEL}
       - AHEAD_TIME_IN_MINUTES=${AHEAD_TIME_IN_MINUTES}
       - AHEAD_TIME_IN_HOURS=${AHEAD_TIME_IN_HOURS}
       - GET_METRIC_EVERY_SECONDS=${GET_METRIC_EVERY_SECONDS}
-      - INPUT_SECRET_PATH=${INPUT_SECRET_PATH}
       - API_VERSION=${API_VERSION}
-    container_name: secrets_safe_action
+      - INPUT_SECRET_TITLE=${INPUT_SECRET_TITLE}
+      - INPUT_PARENT_FOLDER_NAME=${INPUT_PARENT_FOLDER_NAME}
+      - INPUT_SECRET_DESCRIPTION=${INPUT_SECRET_DESCRIPTION}
+      - INPUT_USERNAME=${INPUT_USERNAME}
+      - INPUT_PASSWORD=${INPUT_PASSWORD}
+      - INPUT_TEXT=${INPUT_TEXT}
+      - INPUT_FILE_NAME=${INPUT_FILE_NAME}
+      - INPUT_FILE_CONTENT=${INPUT_FILE_CONTENT}
+      - INPUT_OWNER_ID=${INPUT_OWNER_ID}
+      - INPUT_OWNER_TYPE=${INPUT_OWNER_TYPE}
+      - INPUT_PASSWORD_RULE_ID=${INPUT_PASSWORD_RULE_ID}
+      - INPUT_NOTES=${INPUT_NOTES}
+      - INPUT_OWNERS=${INPUT_OWNERS}
+
+    container_name: create_secrets_safe_action
+    command:  python /usr/src/app/src/main.py
+  
+  tests:
+    build: .
+    command:  python -m coverage run -m unittest discover /usr/src/app/tests/unit -v -p 'test_*.py'

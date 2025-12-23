@@ -8,7 +8,14 @@ import requests
 import secrets_safe_library
 from github_action_utils import error
 from retry_requests import retry
-from secrets_safe_library import authentication, managed_account, secrets_safe, utils, exceptions, folders
+from secrets_safe_library import (
+    authentication,
+    exceptions,
+    folders,
+    managed_account,
+    secrets_safe,
+    utils,
+)
 
 env = os.environ
 

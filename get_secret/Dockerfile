@@ -15,17 +15,24 @@ RUN addgroup -g 1001 appgroup && \
 
 # Create and set ownership of the working directory
 RUN mkdir -p /usr/src/app && chown -R appuser:appgroup /usr/src/app
+#RUN mkdir -p /usr/src/tests && chown -R appuser:appgroup /usr/src/tests
 
 WORKDIR /usr/src/app
+
+COPY dist/beyondtrust_bips_library-2.0-py3-none-any.whl /usr/src/app
 
 # Installing requirements from requirements.txt file
 COPY --chown=appuser:appgroup requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN pip install pytest pytest-mock
+RUN pip install beyondtrust_bips_library-2.0-py3-none-any.whl
+
 # Copy source files and set proper ownership
-COPY --chown=appuser:appgroup src/ .
+COPY --chown=appuser:appgroup src/ src/
+COPY --chown=appuser:appgroup tests/ tests/
 
 # Switch to non-root user
 USER appuser
 
-ENTRYPOINT ["python", "/usr/src/app/main.py"]
+#ENTRYPOINT ["python", "/usr/src/app/main.py"]
