@@ -164,7 +164,7 @@ def get_secrets(
 
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
 
-        #mask_secret("add-mask", get_secret_response)
+        mask_secret("add-mask", get_secret_response)
         append_output(secret_to_retrieve["output_id"], get_secret_response)
 
 
