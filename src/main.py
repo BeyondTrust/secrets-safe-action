@@ -163,9 +163,9 @@ def get_secrets(
             show_error("Invalid JSON, validate output_id attribute name")
 
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
-
-        mask_secret("add-mask", get_secret_response)
-        append_output(secret_to_retrieve["output_id"], get_secret_response)
+        if get_secret_response:
+            mask_secret("add-mask", get_secret_response)
+            append_output(secret_to_retrieve["output_id"], get_secret_response)
 
 
 def main() -> None:
