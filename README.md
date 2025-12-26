@@ -94,6 +94,9 @@ Level of logging verbosity. Default INFO.
 
 Levels: CRITICAL, FATAL, ERROR, WARNING, WARN, INFO, DEBUG, NOTSET
 
+### `decrypt`
+**Optional:** When set to true, the decrypted password field is returned. When set to false, the password field is omitted. This option applies only to secret retrieval type.
+
 ## Outputs
 
 ### `output_id`
