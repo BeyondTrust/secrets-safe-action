@@ -50,6 +50,10 @@ inputs:
     description: 'Secrets path and managed accounts path separator'
     required: false
     default: '/'
+  decrypt:
+    description: 'When true, returns the decrypted password field; when false, the password field is omitted'
+    required: false
+    default: 'true'
 outputs:
   <output_id>:
     description: 'The action stores the retrieved secrets in output variables defined by the end user. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.'
@@ -69,6 +73,7 @@ runs:
     - ${{ inputs.managed_account_path }}
     - ${{ inputs.log_level }}
     - ${{ inputs.path_separator }}
+    - ${{ inputs.decrypt }}
 branding:
   icon: 'lock'
   color: 'orange'

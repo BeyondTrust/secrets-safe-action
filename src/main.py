@@ -7,8 +7,9 @@ import uuid
 import requests
 import secrets_safe_library
 from github_action_utils import error
-from retry_requests import retry
+from requests.adapters import HTTPAdapter
 from secrets_safe_library import authentication, managed_account, secrets_safe, utils
+from urllib3.util.retry import Retry
 
 env = os.environ
 
@@ -18,6 +19,7 @@ CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
 API_VERSION = env.get("API_VERSION")
 VERIFY_CA = env.get("VERIFY_CA", "true").lower() != "false"
+DECRYPT = env.get("INPUT_DECRYPT", "true").lower() == "true"
 
 SECRET_PATH = env.get("INPUT_SECRET_PATH", "").strip() or None
 MANAGED_ACCOUNT_PATH = env.get("INPUT_MANAGED_ACCOUNT_PATH", "").strip() or None
@@ -161,27 +163,30 @@ def get_secrets(
             show_error("Invalid JSON, validate output_id attribute name")
 
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
-
-        mask_secret("add-mask", get_secret_response)
-        append_output(secret_to_retrieve["output_id"], get_secret_response)
+        if get_secret_response:
+            mask_secret("add-mask", get_secret_response)
+            append_output(secret_to_retrieve["output_id"], get_secret_response)
 
 
 def main() -> None:
     try:
         with requests.Session() as session:
-            req = retry(
-                session,
-                retries=3,
+            retry_strategy = Retry(
+                total=3,
                 backoff_factor=0.2,
-                status_to_retry=(400, 408, 500, 502, 503, 504),
+                status_forcelist=[400, 408, 500, 502, 503, 504],
+                allowed_methods=["GET", "POST"],
             )
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
 
             certificate, certificate_key = utils.prepare_certificate_info(
                 CERTIFICATE, CERTIFICATE_KEY
             )
 
             auth_config = {
-                "req": req,
+                "req": session,
                 "timeout_connection": TIMEOUT_CONNECTION_SECONDS,
                 "timeout_request": TIMEOUT_REQUEST_SECONDS,
                 "api_url": API_URL,
@@ -232,6 +237,7 @@ def main() -> None:
                     authentication=authentication_obj,
                     logger=logger,
                     separator=PATH_SEPARATOR,
+                    decrypt=DECRYPT,
                 )
                 get_secrets(secrets_safe_obj, SECRET_PATH)
 
