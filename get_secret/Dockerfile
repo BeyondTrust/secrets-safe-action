@@ -19,14 +19,14 @@ RUN mkdir -p /usr/src/app && chown -R appuser:appgroup /usr/src/app
 
 WORKDIR /usr/src/app
 
-COPY dist/beyondtrust_bips_library-2.5-py3-none-any.whl /usr/src/app
+COPY dist/beyondtrust_bips_library-2.6-py3-none-any.whl /usr/src/app
 
 # Installing requirements from requirements.txt file
 COPY --chown=appuser:appgroup requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 RUN pip install pytest pytest-mock
-RUN pip install beyondtrust_bips_library-2.5-py3-none-any.whl
+RUN pip install beyondtrust_bips_library-2.6-py3-none-any.whl
 
 # Copy source files and set proper ownership
 COPY --chown=appuser:appgroup src/ src/
