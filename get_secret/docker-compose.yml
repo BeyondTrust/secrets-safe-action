@@ -1,7 +1,8 @@
 services:
-  get_secret_action:
+  get_secret_action_2026:
     build:
       context: .
+
     volumes:
       - ./reports/:/output/
     environment:
@@ -21,7 +22,8 @@ services:
       - GET_METRIC_EVERY_SECONDS=${GET_METRIC_EVERY_SECONDS}
       - INPUT_SECRET_PATH=${INPUT_SECRET_PATH}
       - API_VERSION=${API_VERSION}
-    container_name: get_secrets_safe_action
+    container_name: get_secrets_safe_action_2026
+    command: python src/main.py
   
   tests:
     build: .

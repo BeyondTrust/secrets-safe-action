@@ -6,10 +6,10 @@ import uuid
 
 import requests
 import secrets_safe_library
-from github_action_utils import error
-from retry_requests import retry
+from requests.adapters import HTTPAdapter
 from secrets_safe_library import authentication, managed_account, secrets_safe, utils
 from secrets_safe_library.integrations.github_actions.common_utils import common
+from urllib3.util.retry import Retry
 
 env = os.environ
 
@@ -19,6 +19,7 @@ CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
 API_VERSION = env.get("API_VERSION")
 VERIFY_CA = env.get("VERIFY_CA", "true").lower() != "false"
+DECRYPT = env.get("INPUT_DECRYPT", "true").lower() == "true"
 
 SECRET_PATH = env.get("INPUT_SECRET_PATH", "").strip() or None
 MANAGED_ACCOUNT_PATH = env.get("INPUT_MANAGED_ACCOUNT_PATH", "").strip() or None
@@ -93,7 +94,6 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
             full_command = f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{line}"
             print(full_command)
 
-
 def get_secrets(
     secret_obj: authentication.Authentication | secrets_safe.SecretsSafe, secrets: str
 ) -> None:
@@ -114,12 +114,11 @@ def get_secrets(
     try:
         secrets_to_retrive = json.loads(secrets)
     except json.JSONDecodeError as e:
-        common.show_error(f"JSON object is not correctly formatted: {e}")
+        common.show_error(f"JSON object is not correctly formatted: {e}", logger)
     except TypeError as e:
-        common.show_error(f"Input is not a string, bytes or bytearray: {e}")
+        common.show_error(f"Input is not a string, bytes or bytearray: {e}", logger)
     except Exception as e:
-        common.show_error(f"An unexpected error occurred: {e}")
-
+        common.show_error(f"An unexpected error occurred: {e}", logger)
     if not isinstance(secrets_to_retrive, list):
         secrets_to_retrive = [secrets_to_retrive]
 
@@ -127,38 +126,42 @@ def get_secrets(
         common.show_error(
             "The Secrets Safe action can request a maximum of "
             f"{MAX_SECRETS_TO_RETRIEVE} secrets and "
-            f"{MAX_SECRETS_TO_RETRIEVE} managed accounts each run"
+            f"{MAX_SECRETS_TO_RETRIEVE} managed accounts each run",
+            logger
         )
 
     for secret_to_retrieve in secrets_to_retrive:
         if "path" not in secret_to_retrieve:
-            common.show_error("Invalid JSON, validate path attribute name")
+            common.show_error("Invalid JSON, validate path attribute name", logger)
 
         if "output_id" not in secret_to_retrieve:
             common.show_error("Invalid JSON, validate output_id attribute name")
 
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
-
-        mask_secret("add-mask", get_secret_response)
-        append_output(secret_to_retrieve["output_id"], get_secret_response)
+        if get_secret_response:
+            mask_secret("add-mask", get_secret_response)
+            append_output(secret_to_retrieve["output_id"], get_secret_response)
 
 
 def main() -> None:
     try:
         with requests.Session() as session:
-            req = retry(
-                session,
-                retries=3,
+            retry_strategy = Retry(
+                total=3,
                 backoff_factor=0.2,
-                status_to_retry=(400, 408, 500, 502, 503, 504),
+                status_forcelist=[400, 408, 500, 502, 503, 504],
+                allowed_methods=["GET", "POST"],
             )
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
 
             certificate, certificate_key = utils.prepare_certificate_info(
                 CERTIFICATE, CERTIFICATE_KEY
             )
 
             auth_config = {
-                "req": req,
+                "req": session,
                 "timeout_connection": TIMEOUT_CONNECTION_SECONDS,
                 "timeout_request": TIMEOUT_REQUEST_SECONDS,
                 "api_url": API_URL,
@@ -196,19 +199,20 @@ def main() -> None:
                 error_message = (
                     f"Please check credentials, error {get_api_access_response.text}"
                 )
-                common.show_error(error_message)
+                common.show_error(error_message, logger)
 
             if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
                 error_message = (
                     "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
                 )
-                common.show_error(error_message)
+                common.show_error(error_message, logger)
 
             if SECRET_PATH:
                 secrets_safe_obj = secrets_safe.SecretsSafe(
                     authentication=authentication_obj,
                     logger=logger,
                     separator=PATH_SEPARATOR,
+                    decrypt=DECRYPT,
                 )
                 get_secrets(secrets_safe_obj, SECRET_PATH)
 
@@ -223,7 +227,7 @@ def main() -> None:
             authentication_obj.sign_app_out()
 
     except Exception as e:
-        common.show_error(e)
+        common.show_error(e, logger)
 
 
 if __name__ == "__main__":

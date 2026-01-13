@@ -1,6 +1,6 @@
 version: "3.8"
 services:
-  create_secret_action:
+  create_secret_action_2026:
     build:
       context: .
     volumes:
@@ -16,7 +16,7 @@ services:
       - AHEAD_TIME_IN_HOURS=${AHEAD_TIME_IN_HOURS}
       - GET_METRIC_EVERY_SECONDS=${GET_METRIC_EVERY_SECONDS}
       - API_VERSION=${API_VERSION}
-      - INPUT_SECRET_TITLE=${INPUT_SECRET_TITLE}
+      - INPUT_SECRET_TITLE="Secret from GitHub Action"
       - INPUT_PARENT_FOLDER_NAME=${INPUT_PARENT_FOLDER_NAME}
       - INPUT_SECRET_DESCRIPTION=${INPUT_SECRET_DESCRIPTION}
       - INPUT_USERNAME=${INPUT_USERNAME}
@@ -30,7 +30,7 @@ services:
       - INPUT_NOTES=${INPUT_NOTES}
       - INPUT_OWNERS=${INPUT_OWNERS}
 
-    container_name: create_secrets_safe_action
+    container_name: create_secret_action_2026
     command:  python /usr/src/app/src/main.py
   
   tests:
