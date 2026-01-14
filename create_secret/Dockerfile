@@ -23,9 +23,9 @@ COPY --chown=appuser:appgroup requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source files and set proper ownership
-COPY --chown=appuser:appgroup src/ src/
+COPY --chown=appuser:appgroup src/ .
 
 # Switch to non-root user
 USER appuser
 
-ENTRYPOINT ["python", "/usr/src/app/src/main.py"]
+ENTRYPOINT ["python", "/usr/src/app/main.py"]
