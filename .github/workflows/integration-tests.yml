@@ -30,11 +30,13 @@ jobs:
 
       - name: Setting up environment
         run: |
-          pip install -r requirements-dev.txt
+          pip install -r create_secret/requirements-dev.txt
+          pip install -r get_secret/requirements-dev.txt
       
       - name: Running integration tests
         run: |
-          python3 -m coverage run -m unittest discover tests/unit -v -p 'test_*.py'
+          python3 -m coverage run -m unittest discover create_secret/tests/unit -v -p 'test_*.py'
+          python3 -m coverage run -m unittest discover get_secret/tests/unit -v -p 'test_*.py'
           python3 -m coverage report
           python3 -m coverage xml
 

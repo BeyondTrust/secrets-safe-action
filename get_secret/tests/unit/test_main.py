@@ -105,31 +105,9 @@ class TestMain(unittest.TestCase):
         expected_calls = [call("::add-mask ::line1"), call("::add-mask ::line3")]
         mock_print.assert_has_calls(expected_calls)
 
-    @patch("src.main.utils.print_log")
-    @patch("src.main.error")
-    @patch("sys.exit")
-    def test_show_error(self, mock_exit, mock_error, mock_print_log):
-        """Test show_error function"""
-        error_message = "Test error message"
-
-        main.show_error(error_message)
-
-        mock_error.assert_called_once_with(
-            error_message,
-            title="Action Failed",
-            col=1,
-            end_column=2,
-            line=4,
-            end_line=5,
-        )
-        mock_print_log.assert_called_once()
-        mock_exit.assert_called_once_with(1)
-
-    @patch("src.main.show_error")
-    @patch("src.main.append_output")
-    @patch("src.main.mask_secret")
+    @patch("src.main.common.show_error")
     def test_get_secrets_json_decode_error(
-        self, mock_mask, mock_append, mock_show_error
+        self, mock_show_error
     ):
         """Test get_secrets with JSON decode error"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
@@ -144,12 +122,11 @@ class TestMain(unittest.TestCase):
         mock_show_error.assert_called_once()
         # Check that it was called with a JSON error message
         args, _ = mock_show_error.call_args
-        self.assertIn("JSON object is not correctly formatted", args[0])
+        self.assertIn("Invalid JSON input: Expecting"
+                      "value: line 1 column 1 (char 0)", args[0])
 
-    @patch("src.main.show_error")
-    @patch("src.main.append_output")
-    @patch("src.main.mask_secret")
-    def test_get_secrets_type_error(self, mock_mask, mock_append, mock_show_error):
+    @patch("src.main.common.show_error")
+    def test_get_secrets_type_error(self, mock_show_error):
         """Test get_secrets with TypeError"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
         mock_show_error.side_effect = SystemExit(1)
@@ -161,13 +138,12 @@ class TestMain(unittest.TestCase):
 
         mock_show_error.assert_called_once()
         args, _ = mock_show_error.call_args
-        self.assertIn("Input is not a string, bytes or bytearray", args[0])
+        self.assertIn("Invalid JSON input: the JSON object must be str,"
+                      "bytes or bytearray, not NoneType", args[0])
 
-    @patch("src.main.show_error")
-    @patch("src.main.append_output")
-    @patch("src.main.mask_secret")
+    @patch("src.main.common.show_error")
     def test_get_secrets_max_secrets_exceeded(
-        self, mock_mask, mock_append, mock_show_error
+        self, mock_show_error
     ):
         """Test get_secrets with too many secrets"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
@@ -185,10 +161,8 @@ class TestMain(unittest.TestCase):
         args, _ = mock_show_error.call_args
         self.assertIn("maximum of 20 secrets", args[0])
 
-    @patch("src.main.show_error")
-    @patch("src.main.append_output")
-    @patch("src.main.mask_secret")
-    def test_get_secrets_missing_path(self, mock_mask, mock_append, mock_show_error):
+    @patch("src.main.common.show_error")
+    def test_get_secrets_missing_path(self, mock_show_error):
         """Test get_secrets with missing path attribute"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
         mock_show_error.side_effect = SystemExit(1)
@@ -204,11 +178,9 @@ class TestMain(unittest.TestCase):
         args, _ = mock_show_error.call_args
         self.assertIn("validate path attribute name", args[0])
 
-    @patch("src.main.show_error")
-    @patch("src.main.append_output")
-    @patch("src.main.mask_secret")
+    @patch("src.main.common.show_error")
     def test_get_secrets_missing_output_id(
-        self, mock_mask, mock_append, mock_show_error
+        self, mock_show_error
     ):
         """Test get_secrets with missing output_id attribute"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
@@ -266,7 +238,7 @@ class TestMain(unittest.TestCase):
         mock_append.assert_any_call("id1", "secret1")
         mock_append.assert_any_call("id2", "secret2")
 
-    @patch("src.main.show_error")
+    @patch("src.main.common.show_error")
     @patch("src.main.authentication.Authentication.get_api_access")
     def test_main_auth_failure(self, mock_get_api_access, mock_show_error):
         """Test main function with authentication failure"""
@@ -286,7 +258,7 @@ class TestMain(unittest.TestCase):
         args, _ = mock_show_error.call_args_list[0]
         self.assertIn("Please check credentials", args[0])
 
-    @patch("src.main.show_error")
+    @patch("src.main.common.show_error")
     def test_main_exception_handling(self, mock_show_error):
         """Test main function exception handling"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)

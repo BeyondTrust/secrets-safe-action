@@ -1,0 +1,35 @@
+services:
+  create_secret_action:
+    build:
+      context: .
+    volumes:
+      - ./reports/:/output/
+    environment:
+      - API_URL=${API_URL}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - VERIFY_CA=${VERIFY_CA}
+      - GITHUB_OUTPUT=${GITHUB_OUTPUT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - AHEAD_TIME_IN_MINUTES=${AHEAD_TIME_IN_MINUTES}
+      - AHEAD_TIME_IN_HOURS=${AHEAD_TIME_IN_HOURS}
+      - GET_METRIC_EVERY_SECONDS=${GET_METRIC_EVERY_SECONDS}
+      - API_VERSION=${API_VERSION}
+      - INPUT_SECRET_TITLE="Secret from GitHub Action"
+      - INPUT_PARENT_FOLDER_NAME=${INPUT_PARENT_FOLDER_NAME}
+      - INPUT_SECRET_DESCRIPTION=${INPUT_SECRET_DESCRIPTION}
+      - INPUT_USERNAME=${INPUT_USERNAME}
+      - INPUT_PASSWORD=${INPUT_PASSWORD}
+      - INPUT_TEXT=${INPUT_TEXT}
+      - INPUT_FILE_NAME=${INPUT_FILE_NAME}
+      - INPUT_FILE_CONTENT=${INPUT_FILE_CONTENT}
+      - INPUT_OWNER_ID=${INPUT_OWNER_ID}
+      - INPUT_OWNER_TYPE=${INPUT_OWNER_TYPE}
+      - INPUT_PASSWORD_RULE_ID=${INPUT_PASSWORD_RULE_ID}
+      - INPUT_NOTES=${INPUT_NOTES}
+      - INPUT_OWNERS=${INPUT_OWNERS}
+    container_name: create_secret_action
+  
+  unit_tests:
+    build: .
+    command: python -m pytest -v /usr/src/app/tests/
