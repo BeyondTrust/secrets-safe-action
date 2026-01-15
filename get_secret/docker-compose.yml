@@ -6,6 +6,7 @@ services:
       - ./reports/:/output/
     environment:
       - API_URL=${API_URL}
+      - API_KEY=${API_KEY}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
       - CERTIFICATE=${CERTIFICATE}
