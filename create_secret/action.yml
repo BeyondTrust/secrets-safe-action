@@ -38,7 +38,7 @@ inputs:
     description: 'Log level'
     required: false
     default: 'INFO'
-  title:
+  secret_title:
     description: 'Title of the secret to be created'
     required: true
     default: ''
@@ -46,7 +46,7 @@ inputs:
     description: 'Name of the parent folder where the secret will be created'
     required: true
     default: ''
-  description:
+  secret_description:
     description: 'Description of the secret'
     required: false
     default: ''
@@ -107,9 +107,9 @@ runs:
     - ${{ inputs.certificate }}
     - ${{ inputs.certificate_key }}
     - ${{ inputs.log_level }}
-    - ${{ inputs.title }}
+    - ${{ inputs.secret_title }}
     - ${{ inputs.parent_folder_name }}
-    - ${{ inputs.description }}
+    - ${{ inputs.secret_description }}
     - ${{ inputs.username }}
     - ${{ inputs.password }}
     - ${{ inputs.text }}
