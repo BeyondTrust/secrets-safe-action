@@ -1,4 +1,4 @@
-name: Integration Tests
+name: Unit Tests
 
 env:
   SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
@@ -33,7 +33,7 @@ jobs:
           pip install -r create_secret/requirements-dev.txt
           pip install -r get_secret/requirements-dev.txt
       
-      - name: Running integration tests
+      - name: Running Unit tests
         run: |
           cd create_secret && python3 -m coverage run --data-file=../.coverage.create -m unittest discover tests/unit -v -p 'test_*.py'
           cd ../get_secret && python3 -m coverage run --data-file=../.coverage.get -m unittest discover tests/unit -v -p 'test_*.py'
