@@ -122,7 +122,7 @@ class TestMain(unittest.TestCase):
         mock_show_error.assert_called_once()
         # Check that it was called with a JSON error message
         args, _ = mock_show_error.call_args
-        self.assertIn("Invalid JSON input: Expecting"
+        self.assertIn("Invalid JSON input: Expecting "
                       "value: line 1 column 1 (char 0)", args[0])
 
     @patch("src.main.common.show_error")
@@ -138,7 +138,7 @@ class TestMain(unittest.TestCase):
 
         mock_show_error.assert_called_once()
         args, _ = mock_show_error.call_args
-        self.assertIn("Invalid JSON input: the JSON object must be str,"
+        self.assertIn("Invalid JSON input: the JSON object must be str, "
                       "bytes or bytearray, not NoneType", args[0])
 
     @patch("src.main.common.show_error")
