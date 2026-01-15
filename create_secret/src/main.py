@@ -121,10 +121,14 @@ def create_secret(
     # instantiate folders obj
     folders_obj = folders.Folder(authentication=authentication_obj, logger=logger)
 
+    logger.info("Creating secret")
+
     # getting parent folder
     folder = get_folder(folders_obj, PARENT_FOLDER_NAME)
     if not folder:
         common.show_error("Parent Folder name was not found", logger)
+
+    logger.info("Parent folder found")
 
     secrets_safe_obj = secrets_safe.SecretsSafe(
         authentication=authentication_obj,
@@ -152,6 +156,8 @@ def create_secret(
             notes=NOTES,
             urls=json.loads(URLS) if URLS else None,
         )
+
+        logger.info("Secret created successfully")
     except exceptions.CreationError as e:
         common.show_error(f"Error creating secret: {e}", logger)
 
