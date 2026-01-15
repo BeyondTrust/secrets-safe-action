@@ -1,7 +1,9 @@
+import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from src.main import get_folder, main, set_authentication
+from secrets_safe_library.exceptions import OptionsError
+from src.main import create_secret, get_folder, main, set_authentication
 
 
 class TestMain(unittest.TestCase):
@@ -127,3 +129,96 @@ class TestMain(unittest.TestCase):
         mock_set_authentication.assert_called_once_with(mock_session)
         mock_create_secret.assert_called_once_with(mock_auth)
         mock_auth.sign_app_out.assert_called_once()
+
+    @patch("src.main.json.loads")
+    @patch("src.main.common.show_error")
+    @patch("src.main.secrets_safe.SecretsSafe")
+    @patch("src.main.get_folder")
+    @patch("src.main.folders.Folder")
+    def test_create_secret_success(
+        self,
+        mock_folder_class,
+        mock_get_folder,
+        mock_secrets_safe_class,
+        mock_show_error,
+        mock_json_loads,
+    ):
+        """
+        Verify that create_secret successfully creates a secret
+        """
+        mock_auth = MagicMock()
+        mock_folder_obj = MagicMock()
+        mock_folder_class.return_value = mock_folder_obj
+
+        mock_folder = {"Id": 123, "Name": "TestFolder"}
+        mock_get_folder.return_value = mock_folder
+
+        mock_secrets_safe_obj = MagicMock()
+        mock_secrets_safe_class.return_value = mock_secrets_safe_obj
+
+        mock_json_loads.side_effect = lambda x: json.loads(x) if x else None
+
+        with patch("src.main.TITLE", "TestSecret"), \
+             patch("src.main.PARENT_FOLDER_NAME", "TestFolder"), \
+             patch("src.main.DESCRIPTION", "Test Description"), \
+             patch("src.main.USERNAME", "testuser"), \
+             patch("src.main.PASSWORD", "testpass"):
+
+            create_secret(mock_auth)
+
+        mock_secrets_safe_obj.create_secret.assert_called_once_with(
+            title="TestSecret",
+            folder_id=123,
+            description="Test Description",
+            username="testuser",
+            password="testpass",
+            text="",
+            file_path="",
+            owner_id=None,
+            owner_type="",
+            owners=[],
+            password_rule_id=None,
+            notes="",
+            urls=None
+        )
+        mock_show_error.assert_not_called()
+
+    @patch("src.main.json.loads")
+    @patch("src.main.common.show_error")
+    @patch("src.main.secrets_safe.SecretsSafe")
+    @patch("src.main.get_folder")
+    @patch("src.main.folders.Folder")
+    def test_create_secret_options_error(
+        self,
+        mock_folder_class,
+        mock_get_folder,
+        mock_secrets_safe_class,
+        mock_show_error,
+        mock_json_loads,
+    ):
+        """
+        Verify that create_secret handles OptionsError
+        """
+        mock_auth = MagicMock()
+        mock_folder_obj = MagicMock()
+        mock_folder_class.return_value = mock_folder_obj
+
+        mock_folder = {"Id": 123, "Name": "TestFolder"}
+        mock_get_folder.return_value = mock_folder
+
+        mock_secrets_safe_obj = MagicMock()
+        mock_secrets_safe_class.return_value = mock_secrets_safe_obj
+
+        mock_secrets_safe_obj.create_secret.side_effect = OptionsError(
+            "Invalid or missing parameters: Invalid options")
+
+        mock_json_loads.side_effect = lambda x: json.loads(x) if x else None
+
+        with patch("src.main.TITLE", "TestSecret"):
+            create_secret(mock_auth)
+
+        mock_show_error.assert_called_once()
+
+
+if __name__ == "__main__":
+    unittest.main()

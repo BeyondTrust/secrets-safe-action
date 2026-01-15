@@ -55,7 +55,7 @@ OWNER_TYPE = env.get("INPUT_OWNER_TYPE", "").strip()
 OWNERS = json.loads(env.get("INPUT_OWNERS", "[]"))
 PASSWORD_RULE_ID = env.get("INPUT_PASSWORD_RULE_ID", "").strip()
 NOTES = env.get("INPUT_NOTES", "").strip()
-URLS = env.get("INPUT_URLS", [])
+URLS = env.get("INPUT_URLS", "")
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
@@ -231,20 +231,24 @@ def main() -> None:
     Orchestrates the workflow to authenticate, create a secret,
     and properly close the API session.
     """
-    with requests.Session() as session:
-        retry_strategy = Retry(
+    try:
+        with requests.Session() as session:
+            retry_strategy = Retry(
                 total=3,
                 backoff_factor=0.2,
                 status_forcelist=[400, 408, 500, 502, 503, 504],
                 allowed_methods=["GET", "POST"],
             )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
+            adapter = HTTPAdapter(max_retries=retry_strategy)
+            session.mount("https://", adapter)
+            session.mount("http://", adapter)
 
-        authentication_obj = set_authentication(session)
-        create_secret(authentication_obj)
-        authentication_obj.sign_app_out()
+            authentication_obj = set_authentication(session)
+            create_secret(authentication_obj)
+            authentication_obj.sign_app_out()
+
+    except Exception as e:
+        common.show_error(f"An unexpected error occurred: {e}", logger)
 
 
 if __name__ == "__main__":

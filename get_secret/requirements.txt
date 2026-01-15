@@ -1,2 +1,1 @@
 beyondtrust-bips-library>=2.0.0,<3.0.0
-pytest==9.0.2
