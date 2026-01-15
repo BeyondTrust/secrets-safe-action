@@ -79,7 +79,9 @@ inputs:
     required: false
     default: ''
   owners:
-    description: 'List of owners for the secret'
+    description: | 
+      List of owners for the secret (in JSON format). Example:
+      `[{"user_id":123, "owner_id":123}]`
     required: false
     default: ''
   password_rule_id:
@@ -90,8 +92,10 @@ inputs:
     description: 'Additional notes for the secret'
     required: false
     default: ''
-  urls:
-    description: 'URLs associated with the secret'
+  urls: 
+    description: |
+      URLs associated with the secret (in JSON format). Example:
+      `[{"url":"https://example.com"}]`
     required: false
     default: ''
 runs:
