@@ -52,9 +52,9 @@ FILE_CONTENT = env.get("INPUT_FILE_CONTENT", "").strip()
 FILE_NAME = env.get("INPUT_FILE_NAME", "").strip()
 OWNER_ID = env.get("INPUT_OWNER_ID", "").strip()
 OWNER_TYPE = env.get("INPUT_OWNER_TYPE", "").strip()
-OWNERS = json.loads(env.get("INPUT_OWNERS", "[]"))
 PASSWORD_RULE_ID = env.get("INPUT_PASSWORD_RULE_ID", "").strip()
 NOTES = env.get("INPUT_NOTES", "").strip()
+OWNERS = env.get("INPUT_OWNERS", "")
 URLS = env.get("INPUT_URLS", "")
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
@@ -151,7 +151,7 @@ def create_secret(
             file_path=FILE_NAME,
             owner_id=int(OWNER_ID) if OWNER_ID else None,
             owner_type=OWNER_TYPE,
-            owners=OWNERS,
+            owners=json.loads(OWNERS) if OWNERS else None,
             password_rule_id=int(PASSWORD_RULE_ID) if PASSWORD_RULE_ID else None,
             notes=NOTES,
             urls=json.loads(URLS) if URLS else None,
