@@ -6,8 +6,11 @@ services:
       - ./reports/:/output/
     environment:
       - API_URL=${API_URL}
+      - API_KEY=${API_KEY}
       - CLIENT_ID=${CLIENT_ID}
       - CLIENT_SECRET=${CLIENT_SECRET}
+      - CERTIFICATE=${CERTIFICATE}
+      - CERTIFICATE_KEY=${CERTIFICATE_KEY}
       - VERIFY_CA=${VERIFY_CA}
       - GITHUB_OUTPUT=${GITHUB_OUTPUT}
       - LOG_LEVEL=${LOG_LEVEL}
@@ -25,4 +28,5 @@ services:
       - INPUT_PASSWORD_RULE_ID=${INPUT_PASSWORD_RULE_ID}
       - INPUT_NOTES=${INPUT_NOTES}
       - INPUT_OWNERS=${INPUT_OWNERS}
+      - INPUT_URLS=${INPUT_URLS}
     container_name: create_secret_action

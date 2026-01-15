@@ -104,6 +104,26 @@ def get_folder(
     return matched_folders[0]
 
 
+def parse_json_parameters():
+    """
+    Parse JSON parameters for owners and URLs with error handling.
+
+    Returns:
+        tuple: A tuple containing (owners_list, urls_list)
+    """
+    try:
+        owners_list = json.loads(OWNERS) if OWNERS else None
+    except json.JSONDecodeError as e:
+        common.show_error(f"Invalid JSON format for owners parameter: {e}", logger)
+
+    try:
+        urls_list = json.loads(URLS) if URLS else None
+    except json.JSONDecodeError as e:
+        common.show_error(f"Invalid JSON format for urls parameter: {e}", logger)
+
+    return owners_list, urls_list
+
+
 def create_secret(
     authentication_obj: authentication.Authentication,
 ) -> None:
@@ -139,6 +159,8 @@ def create_secret(
     if FILE_CONTENT:
         common.create_file(FILE_NAME, FILE_CONTENT, logger)
 
+    owners_list, urls_list = parse_json_parameters()
+
     try:
         # creating secret
         secrets_safe_obj.create_secret(
@@ -151,10 +173,10 @@ def create_secret(
             file_path=FILE_NAME,
             owner_id=int(OWNER_ID) if OWNER_ID else None,
             owner_type=OWNER_TYPE,
-            owners=json.loads(OWNERS) if OWNERS else None,
+            owners=owners_list,
             password_rule_id=int(PASSWORD_RULE_ID) if PASSWORD_RULE_ID else None,
             notes=NOTES,
-            urls=json.loads(URLS) if URLS else None,
+            urls=urls_list,
         )
 
         logger.info("Secret created successfully")
