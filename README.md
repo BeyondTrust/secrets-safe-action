@@ -2,7 +2,7 @@
     <img src="images/beyondtrust_logo.svg" alt="BeyondTrust" title="BeyondTrust" align="right" height="30">
 </a>
 
-# Secrets Safe Action
+# Get Secrets Action
 [![License](https://img.shields.io/badge/license-MIT%20-brightgreen.svg)](LICENSE)
 
 
@@ -119,6 +119,203 @@ env:
 with:
   SECRET_PATH: '{"path": "folder1/folder2/title", "output_id": "title"}'
   MANAGED_ACCOUNT_PATH: '{"path": "system/account", "output_id": "account"}'
+```
+
+# Create Secrets Action
+
+This action creates new secrets in BeyondTrust Secrets Safe. The action supports creating different types of secrets including credentials (username/password), text secrets, and file-based secrets. Created secrets are stored in specified folders within your Secrets Safe instance.
+
+### Authentication
+
+The action supports two authentication methods:
+- **API Key Authentication**: Using an API key with optional client certificates
+- **OAuth Client Credentials**: Using client ID and client secret
+
+### Prerequisites
+
+- Appropriate permissions to create secrets in the target folder
+- Target parent folder must exist in Secrets Safe
+- Runners must use a Linux operating system with Docker installed
+
+## Create Secret Inputs
+
+### Authentication Inputs
+
+#### `api_key`
+**Optional:** The API Key configured in BeyondInsight for your application. If not set, then client credentials must be provided.
+
+#### `client_id`
+**Optional:** The API OAuth Client ID configured in BeyondInsight for your application.
+
+#### `client_secret`
+**Optional:** The API OAuth Client Secret configured in BeyondInsight for your application.
+
+#### `api_url`
+**Required:** The API URL for the Secrets Safe instance.
+```
+https://example.com:443/BeyondTrust/api/public/v3
+```
+
+#### `api_version`
+**Optional:** The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used.
+
+#### `verify_ca`
+**Optional:** Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to `true`.
+
+#### `certificate`
+**Optional:** Content of the certificate (cert.pem) for use when authenticating with an API key using a Client Certificate.
+
+#### `certificate_key`
+**Optional:** Certificate private key (key.pem) for use when authenticating with an API key using a Client Certificate.
+
+### Secret Configuration Inputs
+
+#### `secret_title`
+**Required:** Title of the secret to be created. Must be unique within the parent folder.
+
+#### `parent_folder_name` 
+**Required:** Name of the parent folder where the secret will be created. The folder must exist in Secrets Safe.
+
+#### `secret_description`
+**Optional:** Description of the secret for documentation purposes.
+
+### Secret Content Inputs
+
+#### For Credential Secrets:
+
+##### `username`
+**Optional:** Username for credential type secrets.
+
+##### `password`
+**Optional:** Password for credential type secrets.
+
+#### For Text Secrets:
+
+##### `text`
+**Optional:** Text content for text type secrets.
+
+#### For File Secrets:
+
+##### `file_content`
+**Optional:** File content for file type secrets (base64 encoded or plain text).
+
+##### `file_name`
+**Optional:** File name for file type secrets.
+
+### Advanced Configuration Inputs
+
+#### `owner_id`
+**Optional:** ID of the owner for the secret.
+
+#### `owner_type`
+**Optional:** Type of the owner (`User` or `Group`).
+
+#### `owners`
+**Optional:** List of owners for the secret in JSON format.
+```json
+[{"user_id": 123, "owner_id": 123}]
+```
+
+#### `password_rule_id`
+**Optional:** Password rule ID for credential secrets to enforce password policies.
+
+#### `notes`
+**Optional:** Additional notes for the secret.
+
+#### `urls`
+**Optional:** URLs associated with the secret in JSON format.
+```json
+[{"url": "https://example.com"}]
+```
+
+#### `log_level`
+**Optional:** Level of logging verbosity. Default: `INFO`
+Levels: `CRITICAL`, `FATAL`, `ERROR`, `WARNING`, `WARN`, `INFO`, `DEBUG`, `NOTSET`
+
+## Create Secret Examples
+
+### Example 1: Create Credential Secret
+
+```yaml
+- name: Create credential secret
+  id: credential_secret
+  uses: BeyondTrust/secrets-safe-action/create_secret@9e2bbfd1aa4ae265a03d6a212c42e193551af485 # v1.0.0
+  env:   
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    LOG_LEVEL: ${{vars.LOG_LEVEL}}
+    API_VERSION: "3.1"
+  with:
+    SECRET_TITLE: "Secret Title"
+    PARENT_FOLDER_NAME: "Parent folder name"
+    SECRET_DESCRIPTION: ""
+    USERNAME: "username"
+    PASSWORD: "p4ssw0rd!#"
+    TEXT: ""
+    FILE_NAME: ""
+    FILE_CONTENT: ""
+    OWNER_ID: "1"
+    OWNER_TYPE: "User"
+    NOTES: ""
+    OWNERS: '[{"owner_id": 1}]'
+```
+
+### Example 2: Create Text Secret
+
+```yaml
+- name: Create Text secret
+  id: text_secret
+  uses: BeyondTrust/secrets-safe-action/create_secret@9e2bbfd1aa4ae265a03d6a212c42e193551af485 # v1.0.0
+  env:   
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    LOG_LEVEL: ${{vars.LOG_LEVEL}}
+    API_VERSION: "3.1"
+  with:
+    SECRET_TITLE: "Secret Title"
+    PARENT_FOLDER_NAME: "Parent folder name"
+    SECRET_DESCRIPTION: ""
+    USERNAME: ""
+    PASSWORD: ""
+    TEXT: "p4ssw0rd!#"
+    FILE_NAME: ""
+    FILE_CONTENT: ""
+    OWNER_ID: "1"
+    OWNER_TYPE: "User"
+    NOTES: ""
+    OWNERS: '[{"owner_id": 1}]'
+```
+
+### Example 3: Create File Secret
+
+```yaml
+- name: Create File secret
+  id: file_secret
+  uses: BeyondTrust/secrets-safe-action/create_secret@9e2bbfd1aa4ae265a03d6a212c42e193551af485 # v1.0.0
+  env:   
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    LOG_LEVEL: ${{vars.LOG_LEVEL}}
+    API_VERSION: "3.1"
+  with:
+    SECRET_TITLE: "Secret Title"
+    PARENT_FOLDER_NAME: "Parent folder name"
+    SECRET_DESCRIPTION: ""
+    USERNAME: ""
+    PASSWORD: ""
+    TEXT: ""
+    FILE_NAME: "secret.txt"
+    FILE_CONTENT: "my_file_content"
+    OWNER_ID: "1"
+    OWNER_TYPE: "User"
+    NOTES: ""
+    OWNERS: '[{"owner_id": 1}]'
 ```
 
 ## Extracting Client Secret
