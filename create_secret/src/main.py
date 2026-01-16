@@ -156,7 +156,7 @@ def create_secret(
     )
 
     # creating file if file content is provided
-    if FILE_CONTENT:
+    if FILE_CONTENT and FILE_NAME:
         common.create_file(FILE_NAME, FILE_CONTENT, logger)
 
     owners_list, urls_list = parse_json_parameters()
