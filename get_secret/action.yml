@@ -74,6 +74,19 @@ runs:
     - ${{ inputs.log_level }}
     - ${{ inputs.path_separator }}
     - ${{ inputs.decrypt }}
+    - ${{ inputs.title }}
+    - ${{ inputs.parent_folder_name }}
+    - ${{ inputs.description }}
+    - ${{ inputs.username }}
+    - ${{ inputs.password }}
+    - ${{ inputs.text }}
+    - ${{ inputs.file_path }}
+    - ${{ inputs.owner_id }}
+    - ${{ inputs.owner_type }}
+    - ${{ inputs.owners }}
+    - ${{ inputs.password_rule_id }}
+    - ${{ inputs.notes }}
+    - ${{ inputs.urls }}
 branding:
   icon: 'lock'
   color: 'orange'

@@ -1,14 +1,13 @@
 import json
 import logging
 import os
-import sys
 import uuid
 
 import requests
 import secrets_safe_library
-from github_action_utils import error
 from requests.adapters import HTTPAdapter
 from secrets_safe_library import authentication, managed_account, secrets_safe, utils
+from secrets_safe_library.integrations.github_actions.common_utils import common
 from urllib3.util.retry import Retry
 
 env = os.environ
@@ -95,28 +94,32 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
             print(full_command)
 
 
-def show_error(error_message: str) -> None:
+def parse_secrets(secrets: str) -> list:
     """
-    Displays an error message in the logs and prints an error message in the
-    GitHub Actions shell.
+    Parse a JSON string containing secret definitions.
 
-    Arguments:
-        error_message (str): The message to display as an error.
+    The input may represent either a single secret object or a list of secret
+    objects. If a single object is provided, it is wrapped into a list to
+    normalize downstream processing.
+
+    If the input is not valid JSON or is not a supported type, an error is
+    reported and an empty list is returned.
+
+    Args:
+        secrets (str): A JSON-formatted string representing a secret object
+            or a list of secret objects.
 
     Returns:
-        None
+        list: A list of parsed secret objects. Returns an empty list if the
+        input is invalid or cannot be parsed.
     """
+    try:
+        data = json.loads(secrets)
+    except (json.JSONDecodeError, TypeError) as e:
+        common.show_error(f"Invalid JSON input: {e}", logger)
+        return []
 
-    error(
-        error_message,
-        title="Action Failed",
-        col=1,
-        end_column=2,
-        line=4,
-        end_line=5,
-    )
-    utils.print_log(logger, error_message, logging.ERROR)
-    sys.exit(1)
+    return data if isinstance(data, list) else [data]
 
 
 def get_secrets(
@@ -136,31 +139,25 @@ def get_secrets(
         None
     """
 
-    try:
-        secrets_to_retrive = json.loads(secrets)
-    except json.JSONDecodeError as e:
-        show_error(f"JSON object is not correctly formatted: {e}")
-    except TypeError as e:
-        show_error(f"Input is not a string, bytes or bytearray: {e}")
-    except Exception as e:
-        show_error(f"An unexpected error occurred: {e}")
+    secrets_to_retrive = parse_secrets(secrets)
 
     if not isinstance(secrets_to_retrive, list):
         secrets_to_retrive = [secrets_to_retrive]
 
     if len(secrets_to_retrive) > MAX_SECRETS_TO_RETRIEVE:
-        show_error(
+        common.show_error(
             "The Secrets Safe action can request a maximum of "
             f"{MAX_SECRETS_TO_RETRIEVE} secrets and "
-            f"{MAX_SECRETS_TO_RETRIEVE} managed accounts each run"
+            f"{MAX_SECRETS_TO_RETRIEVE} managed accounts each run",
+            logger
         )
 
     for secret_to_retrieve in secrets_to_retrive:
         if "path" not in secret_to_retrieve:
-            show_error("Invalid JSON, validate path attribute name")
+            common.show_error("Invalid JSON, validate path attribute name", logger)
 
         if "output_id" not in secret_to_retrieve:
-            show_error("Invalid JSON, validate output_id attribute name")
+            common.show_error("Invalid JSON, validate output_id attribute name", logger)
 
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
         if get_secret_response:
@@ -224,13 +221,13 @@ def main() -> None:
                 error_message = (
                     f"Please check credentials, error {get_api_access_response.text}"
                 )
-                show_error(error_message)
+                common.show_error(error_message, logger)
 
             if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
                 error_message = (
                     "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
                 )
-                show_error(error_message)
+                common.show_error(error_message, logger)
 
             if SECRET_PATH:
                 secrets_safe_obj = secrets_safe.SecretsSafe(
@@ -252,7 +249,7 @@ def main() -> None:
             authentication_obj.sign_app_out()
 
     except Exception as e:
-        show_error(e)
+        common.show_error(e, logger)
 
 
 if __name__ == "__main__":

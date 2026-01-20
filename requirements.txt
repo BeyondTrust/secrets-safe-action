@@ -1,3 +1,0 @@
-requests==2.32.4
-github_action_utils==1.1.0
-beyondtrust-bips-library>=2.0.0,<3.0.0

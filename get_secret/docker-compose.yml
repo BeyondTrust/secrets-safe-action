@@ -1,0 +1,23 @@
+services:
+  get_secret_action:
+    build:
+      context: .
+    volumes:
+      - ./reports/:/output/
+    environment:
+      - API_URL=${API_URL}
+      - API_KEY=${API_KEY}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - CERTIFICATE=${CERTIFICATE}
+      - CERTIFICATE_KEY=${CERTIFICATE_KEY}
+      - VERIFY_CA=${VERIFY_CA}
+      - MANAGED_ACCOUNT_LIST=${MANAGED_ACCOUNT_LIST}
+      - PATH_SEPARATOR=${PATH_SEPARATOR}
+      - GITHUB_OUTPUT=${GITHUB_OUTPUT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - API_VERSION=${API_VERSION}
+      - INPUT_SECRET_PATH=${INPUT_SECRET_PATH}
+      - INPUT_MANAGED_ACCOUNT_PATH=${INPUT_MANAGED_ACCOUNT_PATH}
+    container_name: get_secret_action
+

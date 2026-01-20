@@ -1,0 +1,130 @@
+name: 'Secrets Safe Action'
+author: 'BeyondTrust Corporation'
+description: 'This custom action allows for the creation of secrets in Secrets Safe API.'
+inputs:
+  api_key:
+    description: 'The API Key configured in BeyondInsight for your application. If not set, then client credentials must be provided.'
+    required: false
+    default: ''
+  api_version:
+    description: 'The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used.'
+    required: false
+    default: ''
+  client_id:
+    description: 'The API OAuth Client ID is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe'
+    required: false
+    default: ''
+  client_secret:
+    description: 'The API OAuth Client Secret is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe.'
+    required: false
+    default: ''
+  api_url:
+    description: 'The API URL for the Secrets Safe instance from which to request a secret.'
+    required: true
+    default: ''
+  verify_ca:
+    description: 'Indicates whether to verify the certificate authority on the Secrets Safe instance. For use when authenticating to Secrets Safe.'
+    required: false
+    default: 'true'
+  certificate:
+    description: 'Content of the certificate (cert.pem) for use when authenticating with an API key using a Client Certificate.'
+    required: false
+    default: ''
+  certificate_key:
+    description: 'Certificate private key (key.pem). For use when authenticating with an API key using a Client Certificate.'
+    required: false
+    default: ''
+  log_level:
+    description: 'Log level'
+    required: false
+    default: 'INFO'
+  secret_title:
+    description: 'Title of the secret to be created'
+    required: true
+    default: ''
+  parent_folder_name:
+    description: 'Name of the parent folder where the secret will be created'
+    required: true
+    default: ''
+  secret_description:
+    description: 'Description of the secret'
+    required: false
+    default: ''
+  username:
+    description: 'Username for credential type secrets'
+    required: false
+    default: ''
+  password:
+    description: 'Password for credential type secrets'
+    required: false
+    default: ''
+  text:
+    description: 'Text content for text type secrets'
+    required: false
+    default: ''
+  file_content:
+    description: 'File content for file type secrets'
+    required: false
+    default: ''
+  file_name:
+    description: 'File name for file type secrets'
+    required: false
+    default: ''
+  owner_id:
+    description: 'ID of the owner for the secret'
+    required: false
+    default: ''
+  owner_type:
+    description: 'Type of the owner (User or Group)'
+    required: false
+    default: ''
+  owners:
+    description: | 
+      List of owners for the secret (in JSON format). Example:
+      `[{"user_id":123, "owner_id":123}]`
+    required: false
+    default: ''
+  password_rule_id:
+    description: 'Password rule ID for credential secrets'
+    required: false
+    default: ''
+  notes:
+    description: 'Additional notes for the secret'
+    required: false
+    default: ''
+  urls: 
+    description: |
+      URLs associated with the secret (in JSON format). Example:
+      `[{"url":"https://example.com"}]`
+    required: false
+    default: ''
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.api_key }}
+    - ${{ inputs.api_version }}
+    - ${{ inputs.client_id }}
+    - ${{ inputs.client_secret }}
+    - ${{ inputs.api_url }}
+    - ${{ inputs.verify_ca }}
+    - ${{ inputs.certificate }}
+    - ${{ inputs.certificate_key }}
+    - ${{ inputs.log_level }}
+    - ${{ inputs.secret_title }}
+    - ${{ inputs.parent_folder_name }}
+    - ${{ inputs.secret_description }}
+    - ${{ inputs.username }}
+    - ${{ inputs.password }}
+    - ${{ inputs.text }}
+    - ${{ inputs.file_content }}
+    - ${{ inputs.file_name }}
+    - ${{ inputs.owner_id }}
+    - ${{ inputs.owner_type }}
+    - ${{ inputs.owners }}
+    - ${{ inputs.password_rule_id }}
+    - ${{ inputs.notes }}
+    - ${{ inputs.urls }}
+branding:
+  icon: 'lock'
+  color: 'orange'

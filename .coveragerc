@@ -1,5 +1,7 @@
 [run]
-source = .
+source =
+    create_secret
+    get_secret
 omit = **/tests/*, *__init__.py, /usr/*
 
 [report]
