@@ -27,8 +27,8 @@
 
 ### Release
 
-- [ ]  Priority release required due to Hot fix / Escalation / Critical bug
-- [ ]  Priority release not required (can be released later with other stories or bugs fixes)
+- [ ] Priority release required due to hotfix / Escalation / Critical bug
+- [ ] Priority release not required (can be released later with other stories or bug fixes)
 
 ### Testing
 
