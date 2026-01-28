@@ -2,7 +2,13 @@
     <img src="images/beyondtrust_logo.svg" alt="BeyondTrust" title="BeyondTrust" align="right" height="30">
 </a>
 
-# Get Secrets Action
+# Beyondtrust Secrets Actions
+
+This project integrates with BeyondTrust Password Safe and provides two core actions for secret management: get_secret and create_secret.
+The get_secret action is used to retrieve existing secrets, while the create_secret action allows the creation of new secrets.
+Detailed descriptions and usage examples for each action are provided in the following sections.
+
+## Get Secrets Action
 [![License](https://img.shields.io/badge/license-MIT%20-brightgreen.svg)](LICENSE)
 
 
@@ -107,7 +113,7 @@ The action stores the retrieved secrets in output variables defined by the end u
 ## Example usage
 
 ```yaml
-uses: BeyondTrust/secrets-safe-action@9e2bbfd1aa4ae265a03d6a212c42e193551af485 # v1.0.0
+uses: BeyondTrust/secrets-safe-action@v2.0.0
 env:
   API_URL: ${{vars.API_URL}}
   VERIFY_CA: ${{vars.VERIFY_CA}}
@@ -121,7 +127,7 @@ with:
   MANAGED_ACCOUNT_PATH: '{"path": "system/account", "output_id": "account"}'
 ```
 
-# Create Secrets Action
+## Create Secrets Action
 
 This action creates new secrets in BeyondTrust Secrets Safe. The action supports creating different types of secrets including credentials (username/password), text secrets, and file-based secrets. Created secrets are stored in specified folders within your Secrets Safe instance.
 
@@ -239,7 +245,7 @@ Levels: `CRITICAL`, `FATAL`, `ERROR`, `WARNING`, `WARN`, `INFO`, `DEBUG`, `NOTSE
 ```yaml
 - name: Create credential secret
   id: credential_secret
-  uses: BeyondTrust/secrets-safe-action/create_secret@9e2bbfd1aa4ae265a03d6a212c42e193551af485 # v1.0.0
+  uses: BeyondTrust/secrets-safe-action/create_secret@v2.0.0
   env:   
     API_URL: ${{vars.API_URL}}
     CLIENT_ID: ${{secrets.CLIENT_ID}}
@@ -267,7 +273,7 @@ Levels: `CRITICAL`, `FATAL`, `ERROR`, `WARNING`, `WARN`, `INFO`, `DEBUG`, `NOTSE
 ```yaml
 - name: Create Text secret
   id: text_secret
-  uses: BeyondTrust/secrets-safe-action/create_secret@9e2bbfd1aa4ae265a03d6a212c42e193551af485 # v1.0.0
+  uses: BeyondTrust/secrets-safe-action/create_secret@v2.0.0
   env:   
     API_URL: ${{vars.API_URL}}
     CLIENT_ID: ${{secrets.CLIENT_ID}}
@@ -295,7 +301,7 @@ Levels: `CRITICAL`, `FATAL`, `ERROR`, `WARNING`, `WARN`, `INFO`, `DEBUG`, `NOTSE
 ```yaml
 - name: Create File secret
   id: file_secret
-  uses: BeyondTrust/secrets-safe-action/create_secret@9e2bbfd1aa4ae265a03d6a212c42e193551af485 # v1.0.0
+  uses: BeyondTrust/secrets-safe-action/create_secret@v2.0.0
   env:   
     API_URL: ${{vars.API_URL}}
     CLIENT_ID: ${{secrets.CLIENT_ID}}

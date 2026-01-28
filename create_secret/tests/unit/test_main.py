@@ -153,11 +153,13 @@ class TestMain(unittest.TestCase):
         mock_secrets_safe_obj = MagicMock()
         mock_secrets_safe_class.return_value = mock_secrets_safe_obj
 
-        with patch("src.main.TITLE", "TestSecret"), \
-             patch("src.main.PARENT_FOLDER_NAME", "TestFolder"), \
-             patch("src.main.DESCRIPTION", "Test Description"), \
-             patch("src.main.FILE_CONTENT", "secret content"), \
-             patch("src.main.FILE_NAME", "secret.txt"):
+        with patch("src.main.TITLE", "TestSecret"), patch(
+            "src.main.PARENT_FOLDER_NAME", "TestFolder"
+        ), patch("src.main.DESCRIPTION", "Test Description"), patch(
+            "src.main.FILE_CONTENT", "secret content"
+        ), patch(
+            "src.main.FILE_NAME", "secret.txt"
+        ):
 
             create_secret(mock_auth)
 
@@ -174,7 +176,7 @@ class TestMain(unittest.TestCase):
             owners=None,
             password_rule_id=None,
             notes="",
-            urls=None
+            urls=None,
         )
         mock_show_error.assert_not_called()
 
@@ -187,7 +189,7 @@ class TestMain(unittest.TestCase):
         mock_folder_class,
         mock_get_folder,
         mock_secrets_safe_class,
-        mock_show_error
+        mock_show_error,
     ):
         """
         Verify that create_secret handles OptionsError
@@ -203,7 +205,8 @@ class TestMain(unittest.TestCase):
         mock_secrets_safe_class.return_value = mock_secrets_safe_obj
 
         mock_secrets_safe_obj.create_secret.side_effect = OptionsError(
-            "Invalid or missing parameters: Invalid options")
+            "Invalid or missing parameters: Invalid options"
+        )
 
         with patch("src.main.TITLE", "TestSecret"):
             create_secret(mock_auth)
@@ -219,7 +222,7 @@ class TestMain(unittest.TestCase):
         mock_folder_class,
         mock_get_folder,
         mock_secrets_safe_class,
-        mock_show_error
+        mock_show_error,
     ):
         """
         Verify that create_secret handles CreationError
@@ -235,7 +238,8 @@ class TestMain(unittest.TestCase):
         mock_secrets_safe_class.return_value = mock_secrets_safe_obj
 
         mock_secrets_safe_obj.create_secret.side_effect = CreationError(
-            "Invalid or missing parameters: Error creating secret")
+            "Invalid or missing parameters: Error creating secret"
+        )
 
         with patch("src.main.TITLE", "TestSecret"):
             create_secret(mock_auth)
