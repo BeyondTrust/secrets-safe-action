@@ -129,7 +129,7 @@ The action stores the retrieved secrets in output variables defined by the end u
 ## Example usage
 
 ```yaml
-uses: BeyondTrust/secrets-safe-action@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
+uses: BeyondTrust/secrets-safe-action/get_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
 env:
   API_URL: ${{vars.API_URL}}
   VERIFY_CA: ${{vars.VERIFY_CA}}
