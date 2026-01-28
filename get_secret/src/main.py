@@ -149,7 +149,7 @@ def get_secrets(
             "The Secrets Safe action can request a maximum of "
             f"{MAX_SECRETS_TO_RETRIEVE} secrets and "
             f"{MAX_SECRETS_TO_RETRIEVE} managed accounts each run",
-            logger
+            logger,
         )
 
     for secret_to_retrieve in secrets_to_retrive:

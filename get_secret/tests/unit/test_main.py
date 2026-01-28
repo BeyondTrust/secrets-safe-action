@@ -106,9 +106,7 @@ class TestMain(unittest.TestCase):
         mock_print.assert_has_calls(expected_calls)
 
     @patch("src.main.common.show_error")
-    def test_get_secrets_json_decode_error(
-        self, mock_show_error
-    ):
+    def test_get_secrets_json_decode_error(self, mock_show_error):
         """Test get_secrets with JSON decode error"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
         mock_show_error.side_effect = SystemExit(1)
@@ -122,8 +120,9 @@ class TestMain(unittest.TestCase):
         mock_show_error.assert_called_once()
         # Check that it was called with a JSON error message
         args, _ = mock_show_error.call_args
-        self.assertIn("Invalid JSON input: Expecting "
-                      "value: line 1 column 1 (char 0)", args[0])
+        self.assertIn(
+            "Invalid JSON input: Expecting " "value: line 1 column 1 (char 0)", args[0]
+        )
 
     @patch("src.main.common.show_error")
     def test_get_secrets_type_error(self, mock_show_error):
@@ -138,13 +137,14 @@ class TestMain(unittest.TestCase):
 
         mock_show_error.assert_called_once()
         args, _ = mock_show_error.call_args
-        self.assertIn("Invalid JSON input: the JSON object must be str, "
-                      "bytes or bytearray, not NoneType", args[0])
+        self.assertIn(
+            "Invalid JSON input: the JSON object must be str, "
+            "bytes or bytearray, not NoneType",
+            args[0],
+        )
 
     @patch("src.main.common.show_error")
-    def test_get_secrets_max_secrets_exceeded(
-        self, mock_show_error
-    ):
+    def test_get_secrets_max_secrets_exceeded(self, mock_show_error):
         """Test get_secrets with too many secrets"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
         mock_show_error.side_effect = SystemExit(1)
@@ -179,9 +179,7 @@ class TestMain(unittest.TestCase):
         self.assertIn("validate path attribute name", args[0])
 
     @patch("src.main.common.show_error")
-    def test_get_secrets_missing_output_id(
-        self, mock_show_error
-    ):
+    def test_get_secrets_missing_output_id(self, mock_show_error):
         """Test get_secrets with missing output_id attribute"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
         mock_show_error.side_effect = SystemExit(1)
