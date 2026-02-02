@@ -69,9 +69,9 @@ def append_output(name: str, value: str) -> None:
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
         delimiter = uuid.uuid1()
-        print(f"{name}<<{delimiter}", file=fh)
-        print(value, file=fh)
-        print(delimiter, file=fh)
+        fh.write(f"{name}<<{delimiter}\n")
+        fh.write(f"{value}\n")
+        fh.write(f"{delimiter}\n")
 
 
 def mask_secret(command: str, secret_to_mask: str) -> None:
@@ -90,7 +90,7 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
     lines = secret_to_mask.split("\n")
     for line in lines:
         if line.strip() != "":
-            full_command = f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{line}"
+            full_command = f"{COMMAND_MARKER}{command}{COMMAND_MARKER}{line}"
             print(full_command)
 
 
