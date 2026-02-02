@@ -93,8 +93,8 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
     lines = secret_to_mask.split("\n")
     for line in lines:
         if line.strip() != "":
-            # The value is intentionally passed to GitHub Actions masking command.
-            # lgtm[py/clear-text-logging-sensitive-data]
+            # GitHub Actions masking command, not real logging.
+            # codeql[py/clear-text-logging-sensitive-data]
             print(f"{COMMAND_MARKER}{command}{COMMAND_MARKER}{line}")
 
 
