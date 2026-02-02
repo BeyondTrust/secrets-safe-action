@@ -3,6 +3,7 @@ import logging
 import os
 import uuid
 
+from click import command
 import requests
 import secrets_safe_library
 from requests.adapters import HTTPAdapter
@@ -69,9 +70,11 @@ def append_output(name: str, value: str) -> None:
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
         delimiter = uuid.uuid1()
-        print(f"{name}<<{delimiter}", file=fh)
-        print(value, file=fh)
-        print(delimiter, file=fh)
+        fh.write(f"{name}<<{delimiter}\n")
+        # Writing to GitHub Actions output file, not logs
+        # lgtm[py/clear-text-logging-sensitive-data]
+        fh.write(f"{value}\n")
+        fh.write(f"{delimiter}\n")
 
 
 def mask_secret(command: str, secret_to_mask: str) -> None:
@@ -90,8 +93,9 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
     lines = secret_to_mask.split("\n")
     for line in lines:
         if line.strip() != "":
-            full_command = f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{line}"
-            print(full_command)
+            # GitHub Actions masking command, not real logging.
+            # codeql[py/clear-text-logging-sensitive-data]
+            print(f"{COMMAND_MARKER}{command}{COMMAND_MARKER}{line}")
 
 
 def parse_secrets(secrets: str) -> list:
