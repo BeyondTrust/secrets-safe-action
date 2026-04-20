@@ -18,43 +18,32 @@ jobs:
     name: 'Wiz-cli IaC Scan'
     runs-on: ubuntu-latest
     if: ${{ github.actor != 'dependabot[bot]' }}
-    environment: wiz
+    # Environment variables used across the job
+    env:
+      SCAN_PATH: "."
+      POLICY: "Audit IaC policy"
+
+    # Set permissions for GitHub token
     permissions:
       security-events: write  # Needed to upload SARIF results to GitHub Security tab
       contents: read          # Allows the job to read repo content
       actions: write          # Allows the job to trigger or interact with actions
-    env:
-      SCAN_PATH: "."
-      POLICY: "Audit IaC policy"
+
+    # Default shell for all steps in this job
+    defaults:
+      run:
+        shell: bash
+
     steps:
-      - name: Check out repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 0  # Fetch full history for accurate scan results
+    # Step 1: Checkout the repository code
+    - name: Check out repository
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      with:
+        fetch-depth: 0  # Fetch full history for accurate scan results
 
-      - name: Generate Github token
-        id: generate_github_token
-        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
-        with:
-          app-id: ${{ vars.BT_DX_WIZ_APP_ID }}
-          private-key: ${{ secrets.BT_DX_WIZ_APP_PEM }}
-          owner: BeyondTrust
-          repositories: wiz-iac-scan-action
-
-      - name: Checkout wiz-iac-scan-action
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          repository: beyondtrust/wiz-iac-scan-action
-          ref: "0429602a8db7783139e3f092ba276040203ef095" # v1.0.0
-          token: ${{ steps.generate_github_token.outputs.token }}
-          path: ./wiz-iac-scan
-          fetch-depth: 1
-          sparse-checkout: |
-            /action.yml
-          sparse-checkout-cone-mode: false
-
-      - name: Run WizCLI
-        uses: ./wiz-iac-scan/
-        with:
-          wiz_client_id: ${{ secrets.WIZ_CLIENT_ID }}
-          wiz_client_secret: ${{ secrets.WIZ_CLIENT_SECRET }}
+    # Step 2: Run Wiz CLI
+    - name: Run WizCLI
+      uses: BeyondTrust/wiz-iac-scan-action@0429602a8db7783139e3f092ba276040203ef095 # v1.0.0
+      with:
+        wiz_client_id: ${{ secrets.WIZ_CLIENT_ID }}
+        wiz_client_secret: ${{ secrets.WIZ_CLIENT_SECRET }}
