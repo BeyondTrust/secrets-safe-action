@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import uuid
 
 import requests
@@ -68,7 +69,7 @@ def append_output(name: str, value: str) -> None:
     """
 
     with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-        delimiter = uuid.uuid1()
+        delimiter = uuid.uuid4()
         print(f"{name}<<{delimiter}", file=fh)
         print(value, file=fh)
         print(delimiter, file=fh)
@@ -159,10 +160,20 @@ def get_secrets(
         if "output_id" not in secret_to_retrieve:
             common.show_error("Invalid JSON, validate output_id attribute name", logger)
 
+        output_id = secret_to_retrieve["output_id"]
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_-]*$", output_id):
+            common.show_error(
+                f"Invalid output_id '{output_id}': must start with a letter or "
+                "underscore and contain only alphanumeric characters, underscores, "
+                "or hyphens",
+                logger,
+            )
+            continue
+
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
         if get_secret_response:
             mask_secret("add-mask", get_secret_response)
-            append_output(secret_to_retrieve["output_id"], get_secret_response)
+            append_output(output_id, get_secret_response)
 
 
 def main() -> None:

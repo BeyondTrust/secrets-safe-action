@@ -195,6 +195,43 @@ class TestMain(unittest.TestCase):
         args, _ = mock_show_error.call_args
         self.assertIn("validate output_id attribute name", args[0])
 
+    @patch("src.main.common.show_error")
+    @patch("src.main.append_output")
+    def test_get_secrets_invalid_output_id_with_newline(self, mock_append, mock_show_error):
+        """Test get_secrets rejects output_id containing a newline (injection attempt)"""
+        secret_obj = MagicMock()
+        secret_obj.get_secret.return_value = "test_secret"
+
+        malicious_secret = {
+            "path": "test_path",
+            "output_id": "valid_id\nINJECTED=value",  # noqa: S105 # nosec B105
+        }
+        secrets_json = json.dumps(malicious_secret)
+
+        main.get_secrets(secret_obj, secrets_json)
+
+        mock_show_error.assert_called_once()
+        args, _ = mock_show_error.call_args
+        self.assertIn("Invalid output_id", args[0])
+        mock_append.assert_not_called()
+
+    @patch("src.main.common.show_error")
+    @patch("src.main.append_output")
+    def test_get_secrets_invalid_output_id_special_chars(self, mock_append, mock_show_error):
+        """Test get_secrets rejects output_id with disallowed special characters"""
+        secret_obj = MagicMock()
+        secret_obj.get_secret.return_value = "test_secret"
+
+        invalid_secret = {"path": "test_path", "output_id": "invalid id!"}
+        secrets_json = json.dumps(invalid_secret)
+
+        main.get_secrets(secret_obj, secrets_json)
+
+        mock_show_error.assert_called_once()
+        args, _ = mock_show_error.call_args
+        self.assertIn("Invalid output_id", args[0])
+        mock_append.assert_not_called()
+
     @patch("src.main.append_output")
     @patch("src.main.mask_secret")
     def test_get_secrets_single_secret_as_dict(self, mock_mask, mock_append):
