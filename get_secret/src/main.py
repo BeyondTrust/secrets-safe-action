@@ -165,9 +165,9 @@ def get_secrets(
             r"[a-zA-Z_][a-zA-Z0-9_-]*", output_id
         ):
             common.show_error(
-                f"Invalid output_id {repr(output_id)}: must be a string starting with a "
-                "letter or underscore and contain only alphanumeric characters, "
-                "underscores, or hyphens",
+                f"Invalid output_id {repr(output_id)}: must be a string starting "
+                "with a letter or underscore and contain only alphanumeric "
+                "characters, underscores, or hyphens",
                 logger,
             )
 
