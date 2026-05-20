@@ -154,6 +154,11 @@ def get_secrets(
         )
 
     for secret_to_retrieve in secrets_to_retrive:
+        if not isinstance(secret_to_retrieve, dict):
+            common.show_error(
+                "Invalid JSON, each secret entry must be a JSON object", logger
+            )
+
         if "path" not in secret_to_retrieve:
             common.show_error("Invalid JSON, validate path attribute name", logger)
 

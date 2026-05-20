@@ -106,5 +106,5 @@ Pre-commit hooks enforce Black, isort, Flake8, and Bandit — install with `pre-
 
 ## Key Dependencies
 
-- `beyondtrust-bips-library` — BeyondTrust SDK; raises typed exceptions (`CreationError`, `OptionsError`, etc.) that both `main.py` files catch explicitly
+- `beyondtrust-bips-library` — BeyondTrust SDK; `create_secret/src/main.py` catches typed SDK exceptions (`CreationError`, `OptionsError`, etc.) explicitly; `get_secret/src/main.py` uses a broad `except Exception` at the top level
 - `requests` — HTTP client; wrapped in a retry-enabled session

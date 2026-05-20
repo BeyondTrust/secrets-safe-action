@@ -144,6 +144,22 @@ class TestMain(unittest.TestCase):
         )
 
     @patch("src.main.common.show_error")
+    def test_get_secrets_non_dict_entry(self, mock_show_error):
+        """Test get_secrets rejects list entries that are not dicts"""
+        mock_show_error.side_effect = SystemExit(1)
+
+        secret_obj = MagicMock()
+        secrets_json = json.dumps([123])
+
+        with self.assertRaises(SystemExit):
+            main.get_secrets(secret_obj, secrets_json)
+
+        mock_show_error.assert_called_once()
+        args, _ = mock_show_error.call_args
+        self.assertIn("each secret entry must be a JSON object", args[0])
+        secret_obj.get_secret.assert_not_called()
+
+    @patch("src.main.common.show_error")
     def test_get_secrets_max_secrets_exceeded(self, mock_show_error):
         """Test get_secrets with too many secrets"""
         # Mock show_error to raise SystemExit to simulate sys.exit(1)
