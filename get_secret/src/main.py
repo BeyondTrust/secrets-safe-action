@@ -91,7 +91,7 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
     lines = secret_to_mask.split("\n")
     for line in lines:
         if line.strip() != "":
-            full_command = f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{line}"
+            full_command = f"{COMMAND_MARKER}{command}{COMMAND_MARKER}{line}"
             print(full_command)
 
 
@@ -165,7 +165,7 @@ def get_secrets(
             r"[a-zA-Z_][a-zA-Z0-9_-]*", output_id
         ):
             common.show_error(
-                f"Invalid output_id '{output_id}': must be a string starting with a "
+                f"Invalid output_id {repr(output_id)}: must be a string starting with a "
                 "letter or underscore and contain only alphanumeric characters, "
                 "underscores, or hyphens",
                 logger,

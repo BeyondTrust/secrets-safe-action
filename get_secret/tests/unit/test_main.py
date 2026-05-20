@@ -80,7 +80,7 @@ class TestMain(unittest.TestCase):
     def test_mask_secret_single_line(self, mock_print):
         """Test mask_secret function with single line secret"""
         main.mask_secret("add-mask", "single_line_secret")
-        mock_print.assert_called_once_with("::add-mask ::single_line_secret")
+        mock_print.assert_called_once_with("::add-mask::single_line_secret")
 
     @patch("builtins.print")
     def test_mask_secret_multiple_lines(self, mock_print):
@@ -89,9 +89,9 @@ class TestMain(unittest.TestCase):
         main.mask_secret("add-mask", secret)
 
         expected_calls = [
-            call("::add-mask ::line1"),
-            call("::add-mask ::line2"),
-            call("::add-mask ::line3"),
+            call("::add-mask::line1"),
+            call("::add-mask::line2"),
+            call("::add-mask::line3"),
         ]
         mock_print.assert_has_calls(expected_calls)
 
@@ -102,7 +102,7 @@ class TestMain(unittest.TestCase):
         main.mask_secret("add-mask", secret)
 
         # Should only print non-empty lines
-        expected_calls = [call("::add-mask ::line1"), call("::add-mask ::line3")]
+        expected_calls = [call("::add-mask::line1"), call("::add-mask::line3")]
         mock_print.assert_has_calls(expected_calls)
 
     @patch("src.main.common.show_error")
