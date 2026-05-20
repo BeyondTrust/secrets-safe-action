@@ -63,12 +63,12 @@ Both actions support two mutually exclusive auth methods:
 1. **API Key** — `API_KEY` env var, optionally with `CERTIFICATE` + `CERTIFICATE_KEY`
 2. **OAuth Client Credentials** — `CLIENT_ID` + `CLIENT_SECRET` env vars
 
-`set_authentication()` in each `main.py` validates access (expects HTTP 200), configures certificates if provided, and sets API version (default 3.0, recommended 3.1).
+Both validate API access (expects HTTP 200), configure certificates if provided, and set API version (default 3.0, recommended 3.1).
 
 ### get_secret flow
-`main()` → `set_authentication()` → `get_secrets()` → sign out
+`main()` → (inline auth) → `get_secrets()` → sign out
 
-`get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value via `::add-mask::`, and writes to `$GITHUB_OUTPUT` using UUID delimiters for multiline safety.
+Auth configuration is handled inline inside `main()` (no separate function). `get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value via `::add-mask::`, and writes to `$GITHUB_OUTPUT` using UUID delimiters for multiline safety.
 
 ### create_secret flow
 `main()` → `set_authentication()` → `get_folder()` → `create_secret()` → sign out
@@ -91,7 +91,7 @@ Retry(total=3, backoff_factor=0.2, status_forcelist=[400, 408, 500, 502, 503, 50
 - **Line length:** 88 (Black default), enforced by both Black and Flake8
 - **Import order:** isort with Black profile
 - **Complexity:** max McCabe complexity 10 (`.flake8`)
-- **Coverage gate:** 80% minimum overall; 85% for new code (`.coveragerc`)
+- **Coverage gate:** 80% minimum overall; 85% for new code (enforced via `orgoro/coverage` in `.github/workflows/unit-tests.yml`)
 - **Security linting:** Bandit runs in CI and as a pre-commit hook
 
 Pre-commit hooks enforce Black, isort, Flake8, and Bandit — install with `pre-commit install`.
@@ -101,7 +101,7 @@ Pre-commit hooks enforce Black, isort, Flake8, and Bandit — install with `pre-
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `linter.yml` | PR/push | Black, Flake8, isort, Bandit (all run even if one fails) |
-| `unit-tests.yml` | PR/push, tags `v*` | Runs both test suites, combines coverage, posts to PR via orgoro/coverage, uploads to SonarQube |
+| `unit-tests.yml` | PR/push, tags `v*` | Runs both test suites, combines coverage, posts coverage report to PR via orgoro/coverage |
 | `wiz.yml` | PR/push | WIZ cloud security scan |
 
 ## Key Dependencies

@@ -161,14 +161,15 @@ def get_secrets(
             common.show_error("Invalid JSON, validate output_id attribute name", logger)
 
         output_id = secret_to_retrieve["output_id"]
-        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_-]*$", output_id):
+        if not isinstance(output_id, str) or not re.match(
+            r"^[a-zA-Z_][a-zA-Z0-9_-]*$", output_id
+        ):
             common.show_error(
-                f"Invalid output_id '{output_id}': must start with a letter or "
-                "underscore and contain only alphanumeric characters, underscores, "
-                "or hyphens",
+                f"Invalid output_id '{output_id}': must be a string starting with a "
+                "letter or underscore and contain only alphanumeric characters, "
+                "underscores, or hyphens",
                 logger,
             )
-            continue
 
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
         if get_secret_response:

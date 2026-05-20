@@ -199,6 +199,7 @@ class TestMain(unittest.TestCase):
     @patch("src.main.append_output")
     def test_get_secrets_invalid_output_id_with_newline(self, mock_append, mock_show_error):
         """Test get_secrets rejects output_id containing a newline (injection attempt)"""
+        mock_show_error.side_effect = SystemExit(1)
         secret_obj = MagicMock()
         secret_obj.get_secret.return_value = "test_secret"
 
@@ -208,28 +209,52 @@ class TestMain(unittest.TestCase):
         }
         secrets_json = json.dumps(malicious_secret)
 
-        main.get_secrets(secret_obj, secrets_json)
+        with self.assertRaises(SystemExit):
+            main.get_secrets(secret_obj, secrets_json)
 
         mock_show_error.assert_called_once()
         args, _ = mock_show_error.call_args
         self.assertIn("Invalid output_id", args[0])
+        secret_obj.get_secret.assert_not_called()
         mock_append.assert_not_called()
 
     @patch("src.main.common.show_error")
     @patch("src.main.append_output")
     def test_get_secrets_invalid_output_id_special_chars(self, mock_append, mock_show_error):
         """Test get_secrets rejects output_id with disallowed special characters"""
+        mock_show_error.side_effect = SystemExit(1)
         secret_obj = MagicMock()
         secret_obj.get_secret.return_value = "test_secret"
 
         invalid_secret = {"path": "test_path", "output_id": "invalid id!"}
         secrets_json = json.dumps(invalid_secret)
 
-        main.get_secrets(secret_obj, secrets_json)
+        with self.assertRaises(SystemExit):
+            main.get_secrets(secret_obj, secrets_json)
 
         mock_show_error.assert_called_once()
         args, _ = mock_show_error.call_args
         self.assertIn("Invalid output_id", args[0])
+        secret_obj.get_secret.assert_not_called()
+        mock_append.assert_not_called()
+
+    @patch("src.main.common.show_error")
+    @patch("src.main.append_output")
+    def test_get_secrets_invalid_output_id_non_string(self, mock_append, mock_show_error):
+        """Test get_secrets rejects non-string output_id (e.g., null, number)"""
+        mock_show_error.side_effect = SystemExit(1)
+        secret_obj = MagicMock()
+
+        invalid_secret = {"path": "test_path", "output_id": None}
+        secrets_json = json.dumps(invalid_secret)
+
+        with self.assertRaises(SystemExit):
+            main.get_secrets(secret_obj, secrets_json)
+
+        mock_show_error.assert_called_once()
+        args, _ = mock_show_error.call_args
+        self.assertIn("Invalid output_id", args[0])
+        secret_obj.get_secret.assert_not_called()
         mock_append.assert_not_called()
 
     @patch("src.main.append_output")

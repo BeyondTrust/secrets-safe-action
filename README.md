@@ -2,7 +2,7 @@
     <img src="images/beyondtrust_logo.svg" alt="BeyondTrust" title="BeyondTrust" align="right" height="30">
 </a>
 
-# Beyondtrust Secrets Actions
+# BeyondTrust Secrets Actions
 
 This project integrates with BeyondTrust Password Safe and provides two core actions for secret management: get_secret and create_secret.
 The get_secret action is used to retrieve existing secrets, while the create_secret action allows the creation of new secrets.
