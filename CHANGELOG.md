@@ -1,5 +1,11 @@
 # Change Log
  
+### [2.0.2](https://github.com/BeyondTrust/secrets-safe-action/compare/v2.0.1...v2.0.2) / 2026-05-20
+
+#### Bug Fixes
+
+* harden GITHUB_OUTPUT writes against injection (BIPS-35830, BIPS-35845) ([#62](https://github.com/BeyondTrust/secrets-safe-action/issues/62))
+
 ### [2.0.1](https://github.com/BeyondTrust/secrets-safe-action/compare/v2.0.0...v2.0.1) / 2026-01-28
 
 #### Bug Fixes
