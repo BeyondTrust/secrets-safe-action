@@ -1,3 +1,4 @@
+# THIS FILE IS ONLY FOR TESTING/DEV PURPOSES. DO NOT USE THIS IN PRODUCTION.
 services:
   create_secret_action:
     build:
