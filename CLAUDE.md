@@ -52,7 +52,7 @@ Each action is self-contained with identical layout:
 ├── action.yml          # GitHub Actions metadata (inputs/outputs/runs)
 ├── Dockerfile          # python:3.11-alpine, non-root appuser (UID 1001)
 ├── docker-compose.yml  # Local testing with .env file
-├── requirements.txt    # beyondtrust-bips-library>=2.0.0,<3.0.0, requests
+├── requirements.txt    # beyondtrust-bips-library>=2.0.0,<3.0.0
 ├── requirements-dev.txt
 └── src/main.py         # All logic lives here (~260-280 lines)
     tests/unit/test_main.py

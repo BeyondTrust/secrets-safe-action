@@ -220,6 +220,29 @@ class TestMain(unittest.TestCase):
 
     @patch("src.main.common.show_error")
     @patch("src.main.append_output")
+    def test_get_secrets_invalid_output_id_trailing_newline(self, mock_append, mock_show_error):
+        """Test get_secrets rejects output_id with a trailing newline (regex $ bypass)"""
+        mock_show_error.side_effect = SystemExit(1)
+        secret_obj = MagicMock()
+        secret_obj.get_secret.return_value = "test_secret"
+
+        trailing_newline_secret = {
+            "path": "test_path",
+            "output_id": "valid_id\n",  # noqa: S105 # nosec B105
+        }
+        secrets_json = json.dumps(trailing_newline_secret)
+
+        with self.assertRaises(SystemExit):
+            main.get_secrets(secret_obj, secrets_json)
+
+        mock_show_error.assert_called_once()
+        args, _ = mock_show_error.call_args
+        self.assertIn("Invalid output_id", args[0])
+        secret_obj.get_secret.assert_not_called()
+        mock_append.assert_not_called()
+
+    @patch("src.main.common.show_error")
+    @patch("src.main.append_output")
     def test_get_secrets_invalid_output_id_special_chars(self, mock_append, mock_show_error):
         """Test get_secrets rejects output_id with disallowed special characters"""
         mock_show_error.side_effect = SystemExit(1)
