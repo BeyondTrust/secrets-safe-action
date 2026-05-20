@@ -68,7 +68,7 @@ Both validate API access (expects HTTP 200), configure certificates if provided,
 ### get_secret flow
 `main()` → (inline auth) → `get_secrets()` → sign out
 
-Auth configuration is handled inline inside `main()` (no separate function). `get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value via `::add-mask::`, and writes to `$GITHUB_OUTPUT` using UUID delimiters for multiline safety.
+Auth configuration is handled inline inside `main()` (no separate function). `get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value via `::add-mask ::value` (space before second `::` is intentional — GitHub Actions accepts this form), and writes to `$GITHUB_OUTPUT` using UUID delimiters for multiline safety.
 
 ### create_secret flow
 `main()` → `set_authentication()` → `get_folder()` → `create_secret()` → sign out

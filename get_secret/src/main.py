@@ -91,7 +91,7 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
     lines = secret_to_mask.split("\n")
     for line in lines:
         if line.strip() != "":
-            full_command = f"{COMMAND_MARKER}{command}{COMMAND_MARKER}{line}"
+            full_command = f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{line}"
             print(full_command)
 
 
