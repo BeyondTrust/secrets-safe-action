@@ -1,8 +1,5 @@
 name: Unit Tests
 
-env:
-  SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
-
 on:
   pull_request:
     types: [opened, synchronize]
@@ -42,7 +39,7 @@ jobs:
           python3 -m coverage xml
 
       - name: Check coverage and publish report in the PR
-        uses: orgoro/coverage@v3.2
+        uses: orgoro/coverage@ca0c362dc1a4f100447309405e6dfea47e251495 # v3.3.1
         with:
             coverageFile: coverage.xml
             token: ${{ secrets.GITHUB_TOKEN }}
