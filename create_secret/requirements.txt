@@ -1,1 +1,1 @@
-beyondtrust-bips-library>=2.0.0,<3.0.0
+beyondtrust-bips-library>=2.21.1,<3.0.0
