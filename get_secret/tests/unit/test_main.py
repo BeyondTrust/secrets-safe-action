@@ -105,6 +105,45 @@ class TestMain(unittest.TestCase):
         expected_calls = [call("::add-mask ::line1"), call("::add-mask ::line3")]
         mock_print.assert_has_calls(expected_calls)
 
+    @patch("builtins.print")
+    def test_mask_secret_carriage_return_injection(self, mock_print):
+        """Carriage returns must not let a secret inject extra workflow commands.
+
+        The GitHub Actions runner treats a bare '\\r' as a line terminator, so a
+        value such as 'x\\r::stop-commands::z9q' could otherwise be parsed as two
+        separate stdout lines. Each runner-recognised line terminator (CR, LF,
+        CRLF) must be split and any residual CR escaped.
+        """
+        secret = "x\r::stop-commands::z9q"  # noqa: S105 # nosec B105 - test data
+        main.mask_secret("add-mask", secret)
+
+        # Split on CR -> two non-empty segments, neither emits a raw '\r' that
+        # the runner could parse as a second line / fresh command.
+        expected_calls = [
+            call("::add-mask ::x"),
+            call("::add-mask ::::stop-commands::z9q"),
+        ]
+        mock_print.assert_has_calls(expected_calls)
+        for printed in mock_print.call_args_list:
+            self.assertNotIn("\r", printed.args[0])
+            self.assertNotIn("\n", printed.args[0])
+
+    @patch("builtins.print")
+    def test_mask_secret_crlf_split(self, mock_print):
+        """CRLF line endings should produce one masked segment per line."""
+        secret = "line1\r\nline2"  # noqa: S105 # nosec B105 - test data
+        main.mask_secret("add-mask", secret)
+
+        expected_calls = [call("::add-mask ::line1"), call("::add-mask ::line2")]
+        mock_print.assert_has_calls(expected_calls)
+
+    @patch("builtins.print")
+    def test_mask_secret_escapes_percent(self, mock_print):
+        """Percent characters are escaped consistently with @actions/core."""
+        secret = "50%off"  # noqa: S105 # nosec B105 - test data
+        main.mask_secret("add-mask", secret)
+        mock_print.assert_called_once_with("::add-mask ::50%25off")
+
     @patch("src.main.common.show_error")
     def test_get_secrets_json_decode_error(self, mock_show_error):
         """Test get_secrets with JSON decode error"""

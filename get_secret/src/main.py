@@ -75,6 +75,26 @@ def append_output(name: str, value: str) -> None:
         print(delimiter, file=fh)
 
 
+def escape_data(value: str) -> str:
+    """
+    Escapes a value for safe use as a GitHub Actions workflow-command payload.
+
+    Mirrors the escaping performed by the official @actions/core toolkit so the
+    data portion cannot introduce additional runner-visible lines or be parsed
+    as a new workflow command. The GitHub Actions runner reads container stdout
+    line by line and treats both carriage return (CR, 0x0D) and line feed
+    (LF, 0x0A) as line terminators, so both must be encoded.
+
+    Arguments:
+        value (str): The raw value to escape.
+
+    Returns:
+        str: The escaped value with '%', CR, and LF percent-encoded.
+    """
+
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
 def mask_secret(command: str, secret_to_mask: str) -> None:
     """
     Masks a secret by modifying the command to prevent it from being printed
@@ -88,10 +108,18 @@ def mask_secret(command: str, secret_to_mask: str) -> None:
         None
     """
 
-    lines = secret_to_mask.split("\n")
+    # Split on every line terminator the GitHub Actions runner recognises
+    # (CRLF, CR, LF) so a secret containing a bare '\r' cannot be parsed by
+    # the runner as multiple stdout lines / injected workflow commands.
+    lines = re.split(r"\r\n|\r|\n", secret_to_mask)
     for line in lines:
         if line.strip() != "":
-            full_command = f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{line}"
+            # Escape the data portion consistently with @actions/core so any
+            # residual control or percent characters cannot break out of the
+            # add-mask command payload.
+            full_command = (
+                f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{escape_data(line)}"
+            )
             print(full_command)
 
 
