@@ -60,33 +60,6 @@ outputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  args:
-    - ${{ inputs.api_key }}
-    - ${{ inputs.api_version }}
-    - ${{ inputs.client_id }}
-    - ${{ inputs.client_secret }}
-    - ${{ inputs.api_url }}
-    - ${{ inputs.verify_ca }}
-    - ${{ inputs.certificate }}
-    - ${{ inputs.certificate_key }}
-    - ${{ inputs.secret_path }}
-    - ${{ inputs.managed_account_path }}
-    - ${{ inputs.log_level }}
-    - ${{ inputs.path_separator }}
-    - ${{ inputs.decrypt }}
-    - ${{ inputs.title }}
-    - ${{ inputs.parent_folder_name }}
-    - ${{ inputs.description }}
-    - ${{ inputs.username }}
-    - ${{ inputs.password }}
-    - ${{ inputs.text }}
-    - ${{ inputs.file_path }}
-    - ${{ inputs.owner_id }}
-    - ${{ inputs.owner_type }}
-    - ${{ inputs.owners }}
-    - ${{ inputs.password_rule_id }}
-    - ${{ inputs.notes }}
-    - ${{ inputs.urls }}
 branding:
   icon: 'lock'
   color: 'orange'

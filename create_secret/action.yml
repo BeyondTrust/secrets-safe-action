@@ -101,30 +101,6 @@ inputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
-  args:
-    - ${{ inputs.api_key }}
-    - ${{ inputs.api_version }}
-    - ${{ inputs.client_id }}
-    - ${{ inputs.client_secret }}
-    - ${{ inputs.api_url }}
-    - ${{ inputs.verify_ca }}
-    - ${{ inputs.certificate }}
-    - ${{ inputs.certificate_key }}
-    - ${{ inputs.log_level }}
-    - ${{ inputs.secret_title }}
-    - ${{ inputs.parent_folder_name }}
-    - ${{ inputs.secret_description }}
-    - ${{ inputs.username }}
-    - ${{ inputs.password }}
-    - ${{ inputs.text }}
-    - ${{ inputs.file_content }}
-    - ${{ inputs.file_name }}
-    - ${{ inputs.owner_id }}
-    - ${{ inputs.owner_type }}
-    - ${{ inputs.owners }}
-    - ${{ inputs.password_rule_id }}
-    - ${{ inputs.notes }}
-    - ${{ inputs.urls }}
 branding:
   icon: 'lock'
   color: 'orange'
