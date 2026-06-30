@@ -60,6 +60,17 @@ outputs:
 runs:
   using: 'docker'
   image: 'Dockerfile'
+  env:
+    API_KEY: ${{ inputs.api_key }}
+    API_VERSION: ${{ inputs.api_version }}
+    CLIENT_ID: ${{ inputs.client_id }}
+    CLIENT_SECRET: ${{ inputs.client_secret }}
+    API_URL: ${{ inputs.api_url }}
+    VERIFY_CA: ${{ inputs.verify_ca }}
+    CERTIFICATE: ${{ inputs.certificate }}
+    CERTIFICATE_KEY: ${{ inputs.certificate_key }}
+    LOG_LEVEL: ${{ inputs.log_level }}
+    PATH_SEPARATOR: ${{ inputs.path_separator }}
 branding:
   icon: 'lock'
   color: 'orange'
