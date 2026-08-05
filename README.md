@@ -361,7 +361,7 @@ Values are case-insensitive and surrounding whitespace is ignored. Anything else
 These are Docker container actions, so the bundle must exist **inside the action container**, which does not inherit the runner's trust store. The runner mounts the repository workspace at `/github/workspace` in the container, so a bundle that is checked in — or written by an earlier step — is reachable under that path:
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
 - name: Get secret
   uses: BeyondTrust/secrets-safe-action/get_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
