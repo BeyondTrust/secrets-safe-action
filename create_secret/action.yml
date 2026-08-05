@@ -23,7 +23,7 @@ inputs:
     required: true
     default: ''
   verify_ca:
-    description: 'Indicates whether to verify the certificate authority on the Secrets Safe instance. For use when authenticating to Secrets Safe.'
+    description: 'Indicates whether to verify the certificate authority on the Secrets Safe instance. Accepts true, false, or the path to a CA bundle inside the action container (the workspace is mounted at /github/workspace). true verifies against certifi bundled roots, not the OS trust store. For use when authenticating to Secrets Safe.'
     required: false
     default: 'true'
   certificate:
