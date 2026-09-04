@@ -53,7 +53,7 @@ class TestMain(unittest.TestCase):
         folders_obj.list_folders.assert_called_once_with(folder_name="MyFolder")
 
     @patch("src.main.utils.prepare_certificate_info")
-    @patch("src.main.authentication.Authentication")
+    @patch("src.main.authentication.Authentication", autospec=True)
     def test_set_authentication_with_api_key(
         self,
         mock_auth_class,
@@ -67,9 +67,8 @@ class TestMain(unittest.TestCase):
 
         mock_prepare_cert.return_value = ("cert", "key")
 
-        mock_auth_instance = MagicMock()
+        mock_auth_instance = mock_auth_class.return_value
         mock_auth_instance.get_api_access.return_value.status_code = 200
-        mock_auth_class.return_value = mock_auth_instance
 
         with patch("src.main.API_KEY", "my-api-key"), patch(
             "src.main.API_VERSION", None
@@ -83,7 +82,7 @@ class TestMain(unittest.TestCase):
 
     @patch("src.main.Retry")
     @patch("src.main.utils.prepare_certificate_info")
-    @patch("src.main.authentication.Authentication")
+    @patch("src.main.authentication.Authentication", autospec=True)
     def test_set_authentication_with_client_credentials(
         self,
         mock_auth_class,
@@ -99,9 +98,8 @@ class TestMain(unittest.TestCase):
         mock_retry.return_value = "req"
         mock_prepare_cert.return_value = ("cert", "key")
 
-        mock_auth_instance = MagicMock()
+        mock_auth_instance = mock_auth_class.return_value
         mock_auth_instance.get_api_access.return_value.status_code = 200
-        mock_auth_class.return_value = mock_auth_instance
 
         with patch("src.main.API_KEY", None), patch(
             "src.main.CLIENT_ID", "client-id"
@@ -140,9 +138,9 @@ class TestMain(unittest.TestCase):
         mock_auth.sign_app_out.assert_called_once()
 
     @patch("src.main.common.show_error")
-    @patch("src.main.secrets_safe.SecretsSafe")
+    @patch("src.main.secrets_safe.SecretsSafe", autospec=True)
     @patch("src.main.get_folder")
-    @patch("src.main.folders.Folder")
+    @patch("src.main.folders.Folder", autospec=True)
     def test_create_secret_success(
         self,
         mock_folder_class,
@@ -154,14 +152,11 @@ class TestMain(unittest.TestCase):
         Verify that create_secret successfully creates a secret using FILE secret type.
         """
         mock_auth = MagicMock()
-        mock_folder_obj = MagicMock()
-        mock_folder_class.return_value = mock_folder_obj
 
         mock_folder = {"Id": 123, "Name": "TestFolder"}
         mock_get_folder.return_value = mock_folder
 
-        mock_secrets_safe_obj = MagicMock()
-        mock_secrets_safe_class.return_value = mock_secrets_safe_obj
+        mock_secrets_safe_obj = mock_secrets_safe_class.return_value
 
         with patch("src.main.TITLE", "TestSecret"), patch(
             "src.main.PARENT_FOLDER_NAME", "TestFolder"
@@ -191,9 +186,9 @@ class TestMain(unittest.TestCase):
         mock_show_error.assert_not_called()
 
     @patch("src.main.common.show_error")
-    @patch("src.main.secrets_safe.SecretsSafe")
+    @patch("src.main.secrets_safe.SecretsSafe", autospec=True)
     @patch("src.main.get_folder")
-    @patch("src.main.folders.Folder")
+    @patch("src.main.folders.Folder", autospec=True)
     def test_create_secret_options_error(
         self,
         mock_folder_class,
@@ -205,14 +200,11 @@ class TestMain(unittest.TestCase):
         Verify that create_secret handles OptionsError
         """
         mock_auth = MagicMock()
-        mock_folder_obj = MagicMock()
-        mock_folder_class.return_value = mock_folder_obj
 
         mock_folder = {"Id": 123, "Name": "TestFolder"}
         mock_get_folder.return_value = mock_folder
 
-        mock_secrets_safe_obj = MagicMock()
-        mock_secrets_safe_class.return_value = mock_secrets_safe_obj
+        mock_secrets_safe_obj = mock_secrets_safe_class.return_value
 
         mock_secrets_safe_obj.create_secret.side_effect = OptionsError(
             "Invalid or missing parameters: Invalid options"
@@ -224,9 +216,9 @@ class TestMain(unittest.TestCase):
         mock_show_error.assert_called_once()
 
     @patch("src.main.common.show_error")
-    @patch("src.main.secrets_safe.SecretsSafe")
+    @patch("src.main.secrets_safe.SecretsSafe", autospec=True)
     @patch("src.main.get_folder")
-    @patch("src.main.folders.Folder")
+    @patch("src.main.folders.Folder", autospec=True)
     def test_create_secret_creation_error(
         self,
         mock_folder_class,
@@ -238,14 +230,11 @@ class TestMain(unittest.TestCase):
         Verify that create_secret handles CreationError
         """
         mock_auth = MagicMock()
-        mock_folder_obj = MagicMock()
-        mock_folder_class.return_value = mock_folder_obj
 
         mock_folder = {"Id": 123, "Name": "TestFolder"}
         mock_get_folder.return_value = mock_folder
 
-        mock_secrets_safe_obj = MagicMock()
-        mock_secrets_safe_class.return_value = mock_secrets_safe_obj
+        mock_secrets_safe_obj = mock_secrets_safe_class.return_value
 
         mock_secrets_safe_obj.create_secret.side_effect = CreationError(
             "Invalid or missing parameters: Error creating secret"

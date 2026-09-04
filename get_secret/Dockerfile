@@ -1,5 +1,5 @@
 # base image  
-FROM python:3.11-alpine@sha256:c825a02ff096b3dc3d362015f9e9f6527f66b73e11f9ad2db1f0da4e09ba7030
+FROM python:3.12-alpine@sha256:b64631e04e4920160c50fbe8d8df828f7f35f06f425cb44aa09bca53e708a35a
 
 # setup environment variable  
 ENV PYTHONDONTWRITEBYTECODE=1 \

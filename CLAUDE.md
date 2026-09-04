@@ -8,7 +8,7 @@ A BeyondTrust GitHub Actions repository providing two Docker-based custom action
 - **`get_secret/`** — Retrieves ASCII secrets and exposes them as masked GitHub Actions outputs
 - **`create_secret/`** — Creates new secrets (credential, text, or file types) in Secrets Safe
 
-Both actions are written in Python 3.11 on Alpine Linux containers and use the `beyondtrust-bips-library` SDK.
+Both actions are written in Python 3.12 on Alpine Linux containers and use the `beyondtrust-bips-library` SDK.
 
 ## Commands
 
@@ -50,9 +50,9 @@ Each action is self-contained with identical layout:
 ```
 <action>/
 ├── action.yml          # GitHub Actions metadata (inputs/outputs/runs)
-├── Dockerfile          # python:3.11-alpine, non-root appuser (UID 1001)
+├── Dockerfile          # python:3.12-alpine, non-root appuser (UID 1001)
 ├── docker-compose.yml  # Local testing with .env file
-├── requirements.txt    # beyondtrust-bips-library>=2.0.0,<3.0.0
+├── requirements.txt    # beyondtrust-bips-library>=3.1.0,<4.0.0
 ├── requirements-dev.txt
 └── src/main.py         # All logic lives here (~260-280 lines)
     tests/unit/test_main.py
