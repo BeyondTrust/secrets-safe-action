@@ -62,7 +62,7 @@ https://example.com:443/BeyondTrust/api/public/v3
 
 ### `api_version`
 
-**Optional:** The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used
+**Optional:** Supported versions are 3.0, 3.1, 3.2 and 3.3. The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used. TOTP codes (see `totp_code_secret_ids`) are available for credential secrets created with TOTP enabled on 3.3.
 
 ### `secret_path`
 **Required:** Path of the secret to retrieve.
@@ -94,6 +94,21 @@ https://example.com:443/BeyondTrust/api/public/v3
   }
 ]
 ```
+
+### `totp_code_secret_ids`
+
+**Optional:** IDs (GUIDs) of TOTP-enabled credential secrets whose current one-time code should be retrieved, along with the output the code is written to. Up to 20 entries per run.
+```json
+[
+  {
+    "secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "output_id": "totp_code"
+  }
+]
+```
+Each code is masked in the logs. A code is only valid for the current TOTP period (typically 30 seconds), so use it in the next step rather than later in the job.
+
+The step fails if a secret is a text or file secret, or if the secret is not found or does not have TOTP enabled. See [Example 4](#example-4-create-a-totp-enabled-credential-secret) to create a TOTP-enabled secret.
 
 ### `certificate`
 
@@ -145,6 +160,27 @@ with:
   MANAGED_ACCOUNT_PATH: '{"path": "system/account", "output_id": "account"}'
 ```
 
+### Example: get a TOTP code
+
+```yaml
+- name: Get TOTP code
+  id: totp
+  uses: BeyondTrust/secrets-safe-action/get_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
+  env:
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    API_VERSION: "3.3"
+  with:
+    TOTP_CODE_SECRET_IDS: '[{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "totp_code"}]'
+
+# Use the code straight away: it expires at the end of the current TOTP period.
+- name: Sign in
+  run: ./sign-in.sh
+  env:
+    TOTP_CODE: ${{ steps.totp.outputs.totp_code }}
+```
+
 ## Create Secrets Action
 
 This action creates new secrets in BeyondTrust Secrets Safe. The action supports creating different types of secrets including credentials (username/password), text secrets, and file-based secrets. Created secrets are stored in specified folders within your Secrets Safe instance.
@@ -181,7 +217,7 @@ https://example.com:443/BeyondTrust/api/public/v3
 ```
 
 #### `api_version`
-**Optional:** The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used.
+**Optional:** Supported versions are 3.0, 3.1, 3.2 and 3.3. The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used. Use 3.3 to create TOTP-enabled credential secrets.
 
 #### `verify_ca`
 **Optional:** Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to `true`. Accepts `true`, `false`, or the path to a CA bundle inside the action container — `true` verifies against `certifi`'s bundled roots, **not** the operating system trust store. See [TLS certificate verification (`VERIFY_CA`)](#tls-certificate-verification-verify_ca).
@@ -211,7 +247,17 @@ https://example.com:443/BeyondTrust/api/public/v3
 **Optional:** Username for credential type secrets.
 
 ##### `password`
-**Optional:** Password for credential type secrets.
+**Optional:** Password for credential type secrets. Masked in the logs.
+
+##### `totp_enabled`
+**Optional:** Set to `true` to enable TOTP on the credential secret. Requires `api_version` 3.3 and `totp_secret_key`. Accepts `true`, `false`, or empty (the default) to leave it out of the request. Any other value fails the step.
+
+##### `totp_secret_key`
+**Optional:** TOTP seed, as a Base32 string or an `otpauth://` URI (maximum 1024 characters). Required when `totp_enabled` is `true`, and rejected otherwise. The seed is masked in the logs and is never returned by the API; reads only report whether TOTP is enabled and its parameters.
+
+Pass the seed (and the password) from a GitHub secret, for example `${{ secrets.TOTP_SECRET_KEY }}`. The runner prints a step's `with:` values before the action starts, so a literal value in the workflow file would appear in the log before the action can mask it.
+
+TOTP inputs are only supported for credential secrets (`username` set).
 
 #### For Text Secrets:
 
@@ -339,6 +385,31 @@ Levels: `CRITICAL`, `FATAL`, `ERROR`, `WARNING`, `WARN`, `INFO`, `DEBUG`, `NOTSE
     OWNER_ID: "1"
     OWNER_TYPE: "User"
     NOTES: ""
+    OWNERS: '[{"owner_id": 1}]'
+```
+
+### Example 4: Create a TOTP-enabled credential secret
+
+```yaml
+- name: Create TOTP credential secret
+  id: totp_secret
+  uses: BeyondTrust/secrets-safe-action/create_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
+  env:
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    LOG_LEVEL: ${{vars.LOG_LEVEL}}
+    API_VERSION: "3.3"
+  with:
+    SECRET_TITLE: "Secret Title"
+    PARENT_FOLDER_NAME: "Parent folder name"
+    USERNAME: "username"
+    PASSWORD: ${{ secrets.SECRET_PASSWORD }}
+    TOTP_ENABLED: "true"
+    TOTP_SECRET_KEY: ${{ secrets.TOTP_SECRET_KEY }}
+    OWNER_ID: "1"
+    OWNER_TYPE: "User"
     OWNERS: '[{"owner_id": 1}]'
 ```
 

@@ -12,7 +12,9 @@ This module is responsible for:
 import json
 import logging
 import os
-from typing import Any, Dict, Optional, Union
+import re
+from typing import Any, Dict, Optional, Tuple, Union
+from urllib.parse import parse_qs, urlsplit
 
 import requests
 import secrets_safe_library
@@ -56,6 +58,10 @@ PASSWORD_RULE_ID = env.get("INPUT_PASSWORD_RULE_ID", "").strip()
 NOTES = env.get("INPUT_NOTES", "").strip()
 OWNERS = env.get("INPUT_OWNERS", "")
 URLS = env.get("INPUT_URLS", "")
+TOTP_ENABLED = env.get("INPUT_TOTP_ENABLED", "").strip()
+TOTP_SECRET_KEY = env.get("INPUT_TOTP_SECRET_KEY", "").strip()
+
+COMMAND_MARKER = "::"
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
@@ -195,6 +201,127 @@ except EnvironmentError as verify_ca_error:
     common.show_error(str(verify_ca_error), logger)
 
 
+def escape_data(value: str) -> str:
+    """
+    Escape a value for safe use as a GitHub Actions workflow-command payload.
+
+    Mirrors the escaping performed by the official @actions/core toolkit, so the
+    payload cannot add runner-visible lines or start a new workflow command.
+
+    Args:
+        value (str): The raw value to escape.
+
+    Returns:
+        str: The value with '%', CR and LF percent-encoded.
+    """
+
+    return value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+
+
+def mask_secret(command: str, secret_to_mask: str) -> None:
+    """
+    Register a value with the runner so it is masked in the workflow logs.
+
+    Args:
+        command (str): The workflow command to emit, e.g. "add-mask".
+        secret_to_mask (str): The value to mask. Each line is masked separately.
+    """
+
+    # Split on every line terminator the runner recognises (CRLF, CR, LF) so a
+    # value containing a bare '\r' cannot inject extra workflow commands.
+    for line in re.split(r"\r\n|\r|\n", secret_to_mask):
+        if line.strip() != "":
+            print(f"{COMMAND_MARKER}{command} {COMMAND_MARKER}{escape_data(line)}")
+
+
+def mask_sensitive_inputs() -> None:
+    """
+    Mask the password and TOTP seed inputs before anything else is logged.
+
+    When the seed is an otpauth:// URI, the seed carried in its "secret" query
+    parameter is masked on its own too, so it stays hidden if it is ever
+    printed without the rest of the URI.
+    """
+
+    for value in (PASSWORD, TOTP_SECRET_KEY):
+        if value:
+            mask_secret("add-mask", value)
+
+    if TOTP_SECRET_KEY.lower().startswith("otpauth://"):
+        query = parse_qs(urlsplit(TOTP_SECRET_KEY).query)
+        for seed in query.get("secret", []):
+            mask_secret("add-mask", seed)
+
+
+def parse_optional_bool(value: str, input_name: str) -> Optional[bool]:
+    """
+    Parse an optional boolean action input.
+
+    Args:
+        value (str): Raw input value.
+        input_name (str): Input name, used in the error message.
+
+    Returns:
+        Optional[bool]: None when the input is empty (omitted), otherwise True
+        or False for "true" or "false" (case-insensitive). Any other value
+        fails the step.
+    """
+
+    if not value:
+        return None
+
+    normalized = value.lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+
+    common.show_error(
+        f"Invalid value for {input_name}: {value!r}. Use 'true', 'false', or "
+        "leave it empty.",
+        logger,
+    )
+
+
+def get_totp_settings() -> Tuple[Optional[bool], Optional[str]]:
+    """
+    Parse and validate the TOTP inputs.
+
+    TOTP is only available for credential secrets. A seed is required when
+    totp_enabled is true and is rejected otherwise, matching the server rules.
+    Error messages never include the seed.
+
+    Returns:
+        Tuple[Optional[bool], Optional[str]]: (totp_enabled, totp_secret_key),
+        with None for each input that was left empty.
+    """
+
+    totp_enabled = parse_optional_bool(TOTP_ENABLED, "totp_enabled")
+    totp_secret_key = TOTP_SECRET_KEY or None
+
+    if totp_enabled is None and totp_secret_key is None:
+        return None, None
+
+    if not USERNAME:
+        common.show_error(
+            "totp_enabled and totp_secret_key are only supported for credential "
+            "secrets. Set username (and password) to create a credential secret.",
+            logger,
+        )
+
+    if totp_enabled and not totp_secret_key:
+        common.show_error(
+            "totp_secret_key is required when totp_enabled is 'true'.", logger
+        )
+
+    if totp_secret_key and not totp_enabled:
+        common.show_error(
+            "totp_secret_key is only allowed when totp_enabled is 'true'.", logger
+        )
+
+    return totp_enabled, totp_secret_key
+
+
 def get_folder(
     folders_obj: folders.Folder,
     folder_name: str,
@@ -241,6 +368,8 @@ def parse_json_parameters():
 
 def create_secret(
     authentication_obj: authentication.Authentication,
+    totp_enabled: Optional[bool] = None,
+    totp_secret_key: Optional[str] = None,
 ) -> None:
     """
     Create a secret in Secrets Safe.
@@ -252,6 +381,10 @@ def create_secret(
     Args:
         authentication_obj (authentication.Authentication): Authenticated
             Secrets Safe client instance.
+        totp_enabled (Optional[bool]): Enables TOTP on a credential secret
+            (API version 3.3). None omits it from the request.
+        totp_secret_key (Optional[str]): TOTP seed, as Base32 or an otpauth://
+            URI. None omits it from the request.
     """
     # instantiate folders obj
     folders_obj = folders.Folder(authentication=authentication_obj, logger=logger)
@@ -292,6 +425,8 @@ def create_secret(
             password_rule_id=int(PASSWORD_RULE_ID) if PASSWORD_RULE_ID else None,
             notes=NOTES,
             urls=urls_list,
+            totp_enabled=totp_enabled,
+            totp_secret_key=totp_secret_key,
         )
 
         logger.info("Secret created successfully")
@@ -339,8 +474,8 @@ def set_authentication(
         "logger": logger,
     }
 
-    # The recommended version is 3.1. If no version is specified,
-    # the default API version 3.0 will be used
+    # The recommended version is 3.1 (3.3 is required for TOTP). If no version
+    # is specified, the default API version 3.0 will be used
     if API_VERSION:
         auth_config.update({"api_version": API_VERSION})
 
@@ -376,6 +511,10 @@ def main() -> None:
     Orchestrates the workflow to authenticate, create a secret,
     and properly close the API session.
     """
+    mask_sensitive_inputs()
+    # Validate TOTP inputs before authenticating, so bad input fails fast.
+    totp_enabled, totp_secret_key = get_totp_settings()
+
     try:
         with requests.Session() as session:
             retry_strategy = Retry(
@@ -389,7 +528,7 @@ def main() -> None:
             session.mount("http://", adapter)
 
             authentication_obj = set_authentication(session)
-            create_secret(authentication_obj)
+            create_secret(authentication_obj, totp_enabled, totp_secret_key)
             authentication_obj.sign_app_out()
 
     except Exception as e:

@@ -420,6 +420,206 @@ class TestMain(unittest.TestCase):
             mock_show_error.assert_called_once()
 
 
+@patch("src.main.API_URL", "https://example.com/BeyondTrust/api/public/v3")
+@patch("src.main.CLIENT_ID", "456126543212456126543212456126543212")
+@patch("src.main.CLIENT_SECRET", "123321654234123321654234123321654234")
+@patch("src.main.SECRET_PATH", None)
+@patch("src.main.MANAGED_ACCOUNT_PATH", None)
+class TestMainTotpCodes(unittest.TestCase):
+    """Tests for main when only the TOTP code input is set."""
+
+    @patch(
+        "src.main.TOTP_CODE_SECRET_IDS",
+        '{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "code"}',
+    )
+    @patch("src.main.append_output")
+    @patch("src.main.secrets_safe.SecretsSafe.get_secret_totp_code")
+    @patch("src.main.authentication.Authentication.sign_app_out")
+    @patch("src.main.authentication.Authentication.get_api_access")
+    def test_main_totp_codes_only(
+        self,
+        get_api_access_mock,
+        sign_app_out_mock,
+        get_totp_code_mock,
+        append_output_mock,
+    ):
+        """main retrieves TOTP codes when that is the only input set."""
+        get_api_access_mock.return_value = MagicMock(status_code=200)
+        get_totp_code_mock.return_value = {"Code": "123456"}
+
+        with patch("builtins.print"):
+            main.main()
+
+        get_totp_code_mock.assert_called_once_with(
+            "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        )
+        append_output_mock.assert_called_once_with("code", "123456")
+        sign_app_out_mock.assert_called_once()
+
+    @patch("src.main.TOTP_CODE_SECRET_IDS", None)
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    @patch("src.main.authentication.Authentication.get_api_access")
+    def test_main_nothing_to_do(self, get_api_access_mock, mock_show_error):
+        """main fails when no secret, managed account or TOTP input is set."""
+        get_api_access_mock.return_value = MagicMock(status_code=200)
+
+        with self.assertRaises(SystemExit):
+            main.main()
+
+        self.assertIn("Nothing to do", mock_show_error.call_args[0][0])
+
+
+class TestGetTotpCodes(unittest.TestCase):
+    """Tests for get_totp_codes, which writes TOTP codes to GITHUB_OUTPUT."""
+
+    SECRET_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    OTHER_SECRET_ID = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
+
+    def _entry(self, secret_id=SECRET_ID, output_id="code"):
+        return json.dumps({"secret_id": secret_id, "output_id": output_id})
+
+    def _assert_fails(self, mock_show_error, secrets_safe_obj, secrets, text):
+        with self.assertRaises(SystemExit):
+            main.get_totp_codes(secrets_safe_obj, secrets)
+        self.assertIn(text, mock_show_error.call_args[0][0])
+
+    @patch("src.main.append_output")
+    @patch("src.main.mask_secret")
+    def test_success_masks_and_writes_each_code(self, mock_mask, mock_append):
+        """Every code is masked before it is written to GITHUB_OUTPUT."""
+        events = []
+        mock_mask.side_effect = lambda _, code: events.append(("mask", code))
+        mock_append.side_effect = lambda name, code: events.append((name, code))
+        secrets_safe_obj = MagicMock()
+        secrets_safe_obj.get_secret_totp_code.side_effect = [
+            {
+                "Code": "123456",
+                "ValidFromUtc": "2026-11-09T10:00:00Z",
+                "ValidToUtc": "2026-11-09T10:00:30Z",
+            },
+            {"Code": "654321"},
+        ]
+        secrets = json.dumps(
+            [
+                {"secret_id": self.SECRET_ID, "output_id": "code1"},
+                {"secret_id": self.OTHER_SECRET_ID, "output_id": "code2"},
+            ]
+        )
+
+        main.get_totp_codes(secrets_safe_obj, secrets)
+
+        self.assertEqual(
+            events,
+            [
+                ("mask", "123456"),
+                ("code1", "123456"),
+                ("mask", "654321"),
+                ("code2", "654321"),
+            ],
+        )
+
+    @patch("src.main.append_output")
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_text_or_file_secret_400(self, mock_show_error, mock_append):
+        """A 400 (not a credential secret) fails with an actionable message."""
+        secrets_safe_obj = MagicMock()
+        secrets_safe_obj.get_secret_totp_code.side_effect = (
+            main.exceptions.SecretTypeNotSupportedError("400 Bad Request")
+        )
+
+        self._assert_fails(
+            mock_show_error,
+            secrets_safe_obj,
+            self._entry(),
+            "only available for credential secrets",
+        )
+        mock_append.assert_not_called()
+
+    @patch("src.main.append_output")
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_totp_not_enabled_404(self, mock_show_error, mock_append):
+        """A 404 (not found or TOTP disabled) fails with an actionable message."""
+        secrets_safe_obj = MagicMock()
+        secrets_safe_obj.get_secret_totp_code.side_effect = (
+            main.exceptions.TotpNotEnabledError("404 Not Found")
+        )
+
+        self._assert_fails(
+            mock_show_error,
+            secrets_safe_obj,
+            self._entry(),
+            "TOTP is enabled on it",
+        )
+        mock_append.assert_not_called()
+
+    @patch("src.main.append_output")
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_generic_lookup_failure(self, mock_show_error, mock_append):
+        """Any other request failure fails the step."""
+        secrets_safe_obj = MagicMock()
+        secrets_safe_obj.get_secret_totp_code.side_effect = main.exceptions.LookupError(
+            "403 Forbidden"
+        )
+
+        self._assert_fails(
+            mock_show_error,
+            secrets_safe_obj,
+            self._entry(),
+            "Error getting TOTP code",
+        )
+        mock_append.assert_not_called()
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_invalid_secret_id_is_rejected_before_request(self, mock_show_error):
+        """A secret_id that is not a GUID never reaches the request path."""
+        secrets_safe_obj = MagicMock()
+
+        for secret_id in ("../../folders", "not-a-guid", 123, None):
+            with self.subTest(secret_id=secret_id):
+                self._assert_fails(
+                    mock_show_error,
+                    secrets_safe_obj,
+                    self._entry(secret_id=secret_id),
+                    "Invalid secret_id",
+                )
+
+        secrets_safe_obj.get_secret_totp_code.assert_not_called()
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_invalid_output_id_is_rejected(self, mock_show_error):
+        """output_id is validated the same way as for secret_path."""
+        secrets_safe_obj = MagicMock()
+
+        self._assert_fails(
+            mock_show_error,
+            secrets_safe_obj,
+            self._entry(output_id="bad\nINJECTED=1"),
+            "Invalid output_id",
+        )
+        secrets_safe_obj.get_secret_totp_code.assert_not_called()
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_invalid_entries_are_rejected(self, mock_show_error):
+        """Malformed entries fail with a message naming the problem."""
+        cases = (
+            (json.dumps(["x"]), "must be a JSON object"),
+            (json.dumps({"output_id": "code"}), "validate secret_id"),
+            (json.dumps({"secret_id": self.SECRET_ID}), "validate output_id"),
+            (
+                json.dumps(
+                    [
+                        {"secret_id": self.SECRET_ID, "output_id": f"c{i}"}
+                        for i in range(main.MAX_SECRETS_TO_RETRIEVE + 1)
+                    ]
+                ),
+                "maximum of 20 TOTP codes",
+            ),
+        )
+        for secrets, text in cases:
+            with self.subTest(text=text):
+                self._assert_fails(mock_show_error, MagicMock(), secrets, text)
+
+
 class TestParseVerifyCA(unittest.TestCase):
     """
     Tests for parse_verify_ca, which accepts a CA bundle path so a private or
