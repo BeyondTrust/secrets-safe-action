@@ -512,9 +512,6 @@ def main() -> None:
             if SECRET_PATH:
                 get_secrets(secrets_safe_obj, SECRET_PATH)
 
-            if TOTP_CODE_SECRET_IDS:
-                get_totp_codes(secrets_safe_obj, TOTP_CODE_SECRET_IDS)
-
             if MANAGED_ACCOUNT_PATH:
                 managed_account_obj = managed_account.ManagedAccount(
                     authentication=authentication_obj,
@@ -522,6 +519,11 @@ def main() -> None:
                     separator=PATH_SEPARATOR,
                 )
                 get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
+
+            # Retrieved last so other requests don't use up the codes' short
+            # validity period.
+            if TOTP_CODE_SECRET_IDS:
+                get_totp_codes(secrets_safe_obj, TOTP_CODE_SECRET_IDS)
 
             authentication_obj.sign_app_out()
 

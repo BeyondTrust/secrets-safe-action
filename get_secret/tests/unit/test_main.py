@@ -456,6 +456,30 @@ class TestMainTotpCodes(unittest.TestCase):
         append_output_mock.assert_called_once_with("code", "123456")
         sign_app_out_mock.assert_called_once()
 
+    @patch("src.main.get_totp_codes")
+    @patch("src.main.get_secrets")
+    @patch("src.main.authentication.Authentication.sign_app_out")
+    @patch("src.main.authentication.Authentication.get_api_access")
+    def test_main_retrieves_totp_codes_last(
+        self,
+        get_api_access_mock,
+        sign_app_out_mock,
+        get_secrets_mock,
+        get_totp_codes_mock,
+    ):
+        """TOTP codes are retrieved after other secrets so they don't expire."""
+        get_api_access_mock.return_value = MagicMock(status_code=200)
+        calls = []
+        get_secrets_mock.side_effect = lambda _, path: calls.append(path)
+        get_totp_codes_mock.side_effect = lambda _, ids: calls.append(ids)
+
+        with patch("src.main.SECRET_PATH", "secret"), patch(
+            "src.main.MANAGED_ACCOUNT_PATH", "account"
+        ), patch("src.main.TOTP_CODE_SECRET_IDS", "totp"):
+            main.main()
+
+        self.assertEqual(calls, ["secret", "account", "totp"])
+
     @patch("src.main.TOTP_CODE_SECRET_IDS", None)
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     @patch("src.main.authentication.Authentication.get_api_access")

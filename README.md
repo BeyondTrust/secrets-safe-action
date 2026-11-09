@@ -162,16 +162,17 @@ with:
 
 ### Example: get a TOTP code
 
+TOTP support needs a release of this action that includes it. Pin `uses:` to that release's commit SHA; `v2.0.0` below does not support TOTP. The settings are passed under `with:` so they map onto the action inputs.
+
 ```yaml
 - name: Get TOTP code
   id: totp
   uses: BeyondTrust/secrets-safe-action/get_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
-  env:
+  with:
     API_URL: ${{vars.API_URL}}
     CLIENT_ID: ${{secrets.CLIENT_ID}}
     CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
     API_VERSION: "3.3"
-  with:
     TOTP_CODE_SECRET_IDS: '[{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "totp_code"}]'
 
 # Use the code straight away: it expires at the end of the current TOTP period.
@@ -390,18 +391,19 @@ Levels: `CRITICAL`, `FATAL`, `ERROR`, `WARNING`, `WARN`, `INFO`, `DEBUG`, `NOTSE
 
 ### Example 4: Create a TOTP-enabled credential secret
 
+TOTP support needs a release of this action that includes it. Pin `uses:` to that release's commit SHA; `v2.0.0` below does not support TOTP. The settings are passed under `with:` so they map onto the action inputs.
+
 ```yaml
 - name: Create TOTP credential secret
   id: totp_secret
   uses: BeyondTrust/secrets-safe-action/create_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
-  env:
+  with:
     API_URL: ${{vars.API_URL}}
     CLIENT_ID: ${{secrets.CLIENT_ID}}
     CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
     VERIFY_CA: ${{vars.VERIFY_CA}}
     LOG_LEVEL: ${{vars.LOG_LEVEL}}
     API_VERSION: "3.3"
-  with:
     SECRET_TITLE: "Secret Title"
     PARENT_FOLDER_NAME: "Parent folder name"
     USERNAME: "username"
