@@ -4,8 +4,8 @@
 
 # BeyondTrust Secrets Actions
 
-This project integrates with BeyondTrust Password Safe and provides two core actions for secret management: get_secret and create_secret.
-The get_secret action is used to retrieve existing secrets, while the create_secret action allows the creation of new secrets.
+This project integrates with BeyondTrust Password Safe and provides three actions for secret management: get_secret, create_secret and get_totp_code.
+The get_secret action is used to retrieve existing secrets, the create_secret action allows the creation of new secrets, and the get_totp_code action retrieves the current TOTP one-time code of a TOTP-enabled credential secret.
 Detailed descriptions and usage examples for each action are provided in the following sections.
 
 ## 🚧 New changes in 2.0.0
@@ -62,7 +62,7 @@ https://example.com:443/BeyondTrust/api/public/v3
 
 ### `api_version`
 
-**Optional:** Supported versions are 3.0, 3.1, 3.2 and 3.3. The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used. TOTP codes (see `totp_code_secret_ids`) are available for credential secrets created with TOTP enabled on 3.3.
+**Optional:** The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used
 
 ### `secret_path`
 **Required:** Path of the secret to retrieve.
@@ -94,21 +94,6 @@ https://example.com:443/BeyondTrust/api/public/v3
   }
 ]
 ```
-
-### `totp_code_secret_ids`
-
-**Optional:** IDs (GUIDs) of TOTP-enabled credential secrets whose current one-time code should be retrieved, along with the output the code is written to. Up to 20 entries per run.
-```json
-[
-  {
-    "secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "output_id": "totp_code"
-  }
-]
-```
-Each code is masked in the logs. A code is only valid for the current TOTP period (typically 30 seconds), so use it in the next step rather than later in the job.
-
-The step fails if a secret is a text or file secret, or if the secret is not found or does not have TOTP enabled. See [Example 4](#example-4-create-a-totp-enabled-credential-secret) to create a TOTP-enabled secret.
 
 ### `certificate`
 
@@ -158,28 +143,6 @@ env:
 with:
   SECRET_PATH: '{"path": "folder1/folder2/title", "output_id": "title"}'
   MANAGED_ACCOUNT_PATH: '{"path": "system/account", "output_id": "account"}'
-```
-
-### Example: get a TOTP code
-
-TOTP support needs a release of this action that includes it. Pin `uses:` to that release's commit SHA; `v2.0.0` below does not support TOTP. The settings are passed under `with:` so they map onto the action inputs.
-
-```yaml
-- name: Get TOTP code
-  id: totp
-  uses: BeyondTrust/secrets-safe-action/get_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
-  with:
-    API_URL: ${{vars.API_URL}}
-    CLIENT_ID: ${{secrets.CLIENT_ID}}
-    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
-    API_VERSION: "3.3"
-    TOTP_CODE_SECRET_IDS: '[{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "totp_code"}]'
-
-# Use the code straight away: it expires at the end of the current TOTP period.
-- name: Sign in
-  run: ./sign-in.sh
-  env:
-    TOTP_CODE: ${{ steps.totp.outputs.totp_code }}
 ```
 
 ## Create Secrets Action
@@ -415,9 +378,74 @@ TOTP support needs a release of this action that includes it. Pin `uses:` to tha
     OWNERS: '[{"owner_id": 1}]'
 ```
 
+To read the current code of this secret, use the [Get TOTP Code Action](#get-totp-code-action).
+
+## Get TOTP Code Action
+
+This action retrieves the current TOTP one-time code of TOTP-enabled credential secrets from BeyondTrust Secrets Safe (`GET /Secrets-Safe/Secrets/{secretId}/totp/code`) and makes each code available as a step output. It is a separate action from `get_secret`, so existing secret retrieval workflows are unaffected.
+
+Each code is masked on the runner before it is written to the output. A code is only valid for the current TOTP period (typically 30 seconds), so use it in the next step rather than later in the job.
+
+### Prerequisites
+
+- BeyondInsight/Password Safe 26.3 or greater (PAPI model version 3.3).
+- A credential secret created with TOTP enabled. See [Example 4](#example-4-create-a-totp-enabled-credential-secret).
+- The application must be authorized to read the secret.
+
+Runners must use a Linux operating system. Additionally, self-hosted runners will need Docker installed.
+
+### Get TOTP Code Inputs
+
+#### `api_key`, `client_id`, `client_secret`, `api_url`, `certificate`, `certificate_key`, `verify_ca`, `log_level`
+Same as for the [Get Secrets Action](#inputs).
+
+#### `api_version`
+**Optional:** Defaults to `3.3`, the version that adds TOTP support for credential secrets.
+
+#### `secret_ids`
+**Required:** IDs (GUIDs) of TOTP-enabled credential secrets, along with the output each code is written to. A single object or a list of up to 20 entries is accepted.
+```json
+[
+  {
+    "secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "output_id": "totp_code"
+  }
+]
+```
+The input is validated before authenticating: each `secret_id` must be a GUID, and each `output_id` must start with a letter or `_` and contain only alphanumeric characters, `-`, or `_`.
+
+The step fails if a secret is a text or file secret, or if the secret is not found or does not have TOTP enabled.
+
+### Get TOTP Code Outputs
+
+#### `output_id`
+The current TOTP code of each secret, in the output named by its `output_id`.
+
+### Get TOTP Code Example
+
+The action is available from the release that introduces it. Pin `uses:` to that release's commit SHA.
+
+```yaml
+- name: Get TOTP code
+  id: totp
+  uses: BeyondTrust/secrets-safe-action/get_totp_code@<commit-sha> # release that adds get_totp_code
+  with:
+    API_URL: ${{vars.API_URL}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    SECRET_IDS: '[{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "totp_code"}]'
+
+# Use the code straight away: it expires at the end of the current TOTP period.
+- name: Sign in
+  run: ./sign-in.sh
+  env:
+    TOTP_CODE: ${{ steps.totp.outputs.totp_code }}
+```
+
 ## TLS certificate verification (`VERIFY_CA`)
 
-Both actions read the same `VERIFY_CA` environment variable, which accepts three kinds of value:
+All three actions read the same `VERIFY_CA` environment variable, which accepts three kinds of value:
 
 | Value | Behavior |
 | --- | --- |

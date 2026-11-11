@@ -1,0 +1,20 @@
+# THIS FILE IS ONLY FOR TESTING/DEV PURPOSES. DO NOT USE THIS IN PRODUCTION.
+services:
+  get_totp_code_action:
+    build:
+      context: .
+    volumes:
+      - ./reports/:/output/
+    environment:
+      - API_URL=${API_URL}
+      - API_KEY=${API_KEY}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - CERTIFICATE=${CERTIFICATE}
+      - CERTIFICATE_KEY=${CERTIFICATE_KEY}
+      - VERIFY_CA=${VERIFY_CA}
+      - GITHUB_OUTPUT=${GITHUB_OUTPUT}
+      - LOG_LEVEL=${LOG_LEVEL}
+      - API_VERSION=${API_VERSION}
+      - INPUT_SECRET_IDS=${INPUT_SECRET_IDS}
+    container_name: get_totp_code_action

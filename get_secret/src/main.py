@@ -7,13 +7,7 @@ import uuid
 import requests
 import secrets_safe_library
 from requests.adapters import HTTPAdapter
-from secrets_safe_library import (
-    authentication,
-    exceptions,
-    managed_account,
-    secrets_safe,
-    utils,
-)
+from secrets_safe_library import authentication, managed_account, secrets_safe, utils
 from secrets_safe_library.integrations.github_actions.common_utils import common
 from urllib3.util.retry import Retry
 
@@ -29,7 +23,6 @@ DECRYPT = env.get("INPUT_DECRYPT", "true").lower() == "true"
 
 SECRET_PATH = env.get("INPUT_SECRET_PATH", "").strip() or None
 MANAGED_ACCOUNT_PATH = env.get("INPUT_MANAGED_ACCOUNT_PATH", "").strip() or None
-TOTP_CODE_SECRET_IDS = env.get("INPUT_TOTP_CODE_SECRET_IDS", "").strip() or None
 path_sep = env.get("PATH_SEPARATOR", "/").strip()
 PATH_SEPARATOR = path_sep if len(path_sep) == 1 else "/"
 MAX_SECRETS_TO_RETRIEVE = 20
@@ -276,114 +269,6 @@ def parse_secrets(secrets: str) -> list:
     return data if isinstance(data, list) else [data]
 
 
-def validate_output_id(output_id) -> None:
-    """
-    Fail the step unless output_id is safe to use as a GITHUB_OUTPUT name.
-
-    Args:
-        output_id: The output_id value from the input JSON.
-
-    Returns:
-        None
-    """
-
-    if not isinstance(output_id, str) or not re.fullmatch(
-        r"[a-zA-Z_][a-zA-Z0-9_-]*", output_id
-    ):
-        common.show_error(
-            f"Invalid output_id {repr(output_id)}: must be a string starting "
-            "with a letter or underscore and contain only alphanumeric "
-            "characters, underscores, or hyphens",
-            logger,
-        )
-
-
-def validate_secret_id(secret_id) -> None:
-    """
-    Fail the step unless secret_id is a GUID. The value is placed in the
-    request path, so anything else is rejected before a request is made.
-
-    Args:
-        secret_id: The secret_id value from the input JSON.
-
-    Returns:
-        None
-    """
-
-    try:
-        uuid.UUID(secret_id)
-    except (TypeError, ValueError, AttributeError):
-        common.show_error(
-            f"Invalid secret_id {repr(secret_id)}: must be a secret GUID", logger
-        )
-
-
-def get_totp_codes(secrets_safe_obj: secrets_safe.SecretsSafe, secrets: str) -> None:
-    """
-    Retrieves the current TOTP code for each credential secret and appends it
-    to GITHUB_OUTPUT. Each code is masked before it is written, and is only
-    valid for the current TOTP period.
-
-    Arguments:
-        secrets_safe_obj (SecretsSafe): Secrets Safe client.
-        secrets (str): A JSON object or list of objects with "secret_id" (GUID)
-            and "output_id" attributes.
-
-    Returns:
-        None
-    """
-
-    totp_codes_to_retrieve = parse_secrets(secrets)
-
-    if len(totp_codes_to_retrieve) > MAX_SECRETS_TO_RETRIEVE:
-        common.show_error(
-            "The Secrets Safe action can request a maximum of "
-            f"{MAX_SECRETS_TO_RETRIEVE} TOTP codes each run",
-            logger,
-        )
-
-    for entry in totp_codes_to_retrieve:
-        if not isinstance(entry, dict):
-            common.show_error(
-                "Invalid JSON, each TOTP code entry must be a JSON object", logger
-            )
-
-        if "secret_id" not in entry:
-            common.show_error("Invalid JSON, validate secret_id attribute name", logger)
-
-        if "output_id" not in entry:
-            common.show_error("Invalid JSON, validate output_id attribute name", logger)
-
-        secret_id = entry["secret_id"]
-        output_id = entry["output_id"]
-        validate_secret_id(secret_id)
-        validate_output_id(output_id)
-
-        try:
-            totp_code = secrets_safe_obj.get_secret_totp_code(secret_id)
-        except exceptions.SecretTypeNotSupportedError as e:
-            common.show_error(
-                f"Cannot get a TOTP code for secret {secret_id}: TOTP codes are "
-                f"only available for credential secrets. {e}",
-                logger,
-            )
-        except exceptions.TotpNotEnabledError as e:
-            common.show_error(
-                f"Cannot get a TOTP code for secret {secret_id}: check that the "
-                "secret exists and that TOTP is enabled on it (create it with "
-                f"api_version 3.3 and totp_enabled). {e}",
-                logger,
-            )
-        except exceptions.LookupError as e:
-            common.show_error(
-                f"Error getting TOTP code for secret {secret_id}: {e}", logger
-            )
-
-        code = str(totp_code["Code"])
-        mask_secret("add-mask", code)
-        append_output(output_id, code)
-
-
 def get_secrets(
     secret_obj: authentication.Authentication | secrets_safe.SecretsSafe, secrets: str
 ) -> None:
@@ -427,7 +312,15 @@ def get_secrets(
             common.show_error("Invalid JSON, validate output_id attribute name", logger)
 
         output_id = secret_to_retrieve["output_id"]
-        validate_output_id(output_id)
+        if not isinstance(output_id, str) or not re.fullmatch(
+            r"[a-zA-Z_][a-zA-Z0-9_-]*", output_id
+        ):
+            common.show_error(
+                f"Invalid output_id {repr(output_id)}: must be a string starting "
+                "with a letter or underscore and contain only alphanumeric "
+                "characters, underscores, or hyphens",
+                logger,
+            )
 
         get_secret_response = secret_obj.get_secret(secret_to_retrieve["path"])
         if get_secret_response:
@@ -495,21 +388,19 @@ def main() -> None:
                 )
                 common.show_error(error_message, logger)
 
-            if not (SECRET_PATH or MANAGED_ACCOUNT_PATH or TOTP_CODE_SECRET_IDS):
+            if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
                 error_message = (
-                    "Nothing to do, SECRET, MANAGED_ACCOUNT and "
-                    "TOTP_CODE_SECRET_IDS parameters are empty"
+                    "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
                 )
                 common.show_error(error_message, logger)
 
-            secrets_safe_obj = secrets_safe.SecretsSafe(
-                authentication=authentication_obj,
-                logger=logger,
-                separator=PATH_SEPARATOR,
-                decrypt=DECRYPT,
-            )
-
             if SECRET_PATH:
+                secrets_safe_obj = secrets_safe.SecretsSafe(
+                    authentication=authentication_obj,
+                    logger=logger,
+                    separator=PATH_SEPARATOR,
+                    decrypt=DECRYPT,
+                )
                 get_secrets(secrets_safe_obj, SECRET_PATH)
 
             if MANAGED_ACCOUNT_PATH:
@@ -519,11 +410,6 @@ def main() -> None:
                     separator=PATH_SEPARATOR,
                 )
                 get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
-
-            # Retrieved last so other requests don't use up the codes' short
-            # validity period.
-            if TOTP_CODE_SECRET_IDS:
-                get_totp_codes(secrets_safe_obj, TOTP_CODE_SECRET_IDS)
 
             authentication_obj.sign_app_out()
 

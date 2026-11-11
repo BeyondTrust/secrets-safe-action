@@ -1,0 +1,63 @@
+name: 'Secrets Safe Get TOTP Code Action'
+author: 'BeyondTrust Corporation'
+description: 'This custom action retrieves the current TOTP one-time code of TOTP-enabled credential secrets from an instance of Secrets Safe.'
+inputs:
+  api_key:
+    description: 'The API Key configured in BeyondInsight for your application. If not set, then client credentials must be provided.'
+    required: false
+    default: ''
+  api_version:
+    description: 'API version. Defaults to 3.3, the version that adds TOTP support for credential secrets.'
+    required: false
+    default: '3.3'
+  client_id:
+    description: 'The API OAuth Client ID is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe'
+    required: false
+    default: ''
+  client_secret:
+    description: 'The API OAuth Client Secret is configured in BeyondInsight for your application. For use when authenticating to Secrets Safe.'
+    required: false
+    default: ''
+  api_url:
+    description: 'The API URL for the Secrets Safe instance from which to request a TOTP code.'
+    required: true
+    default: ''
+  verify_ca:
+    description: 'Indicates whether to verify the certificate authority on the Secrets Safe instance. Accepts true, false, or the path to a CA bundle inside the action container (the workspace is mounted at /github/workspace). true verifies against certifi bundled roots, not the OS trust store. For use when authenticating to Secrets Safe.'
+    required: false
+    default: 'true'
+  certificate:
+    description: 'Content of the certificate (cert.pem) for use when authenticating with an API key using a Client Certificate.'
+    required: false
+    default: ''
+  certificate_key:
+    description: 'Certificate private key (key.pem). For use when authenticating with an API key using a Client Certificate.'
+    required: false
+    default: ''
+  secret_ids:
+    description: 'IDs (GUIDs) of TOTP-enabled credential secrets along with the value that the current TOTP code will be mapped to. For example, [{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "totp_code"}]. A single object is also accepted, up to 20 entries per run. Each code is masked and is only valid for the current TOTP period, so use it in the next step.'
+    required: true
+    default: ''
+  log_level:
+    description: 'Log level'
+    required: false
+    default: 'INFO'
+outputs:
+  <output_id>:
+    description: 'The action stores each retrieved TOTP code in an output variable defined by the end user. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    API_KEY: ${{ inputs.api_key }}
+    API_VERSION: ${{ inputs.api_version }}
+    CLIENT_ID: ${{ inputs.client_id }}
+    CLIENT_SECRET: ${{ inputs.client_secret }}
+    API_URL: ${{ inputs.api_url }}
+    VERIFY_CA: ${{ inputs.verify_ca }}
+    CERTIFICATE: ${{ inputs.certificate }}
+    CERTIFICATE_KEY: ${{ inputs.certificate_key }}
+    LOG_LEVEL: ${{ inputs.log_level }}
+branding:
+  icon: 'lock'
+  color: 'orange'
