@@ -4,10 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A BeyondTrust GitHub Actions repository providing three Docker-based custom actions for integrating with BeyondTrust Secrets Safe:
+A BeyondTrust GitHub Actions repository providing four Docker-based custom actions for integrating with BeyondTrust Secrets Safe:
 - **`get_secret/`** — Retrieves ASCII secrets and exposes them as masked GitHub Actions outputs
 - **`create_secret/`** — Creates new secrets (credential, text, or file types) in Secrets Safe
 - **`get_totp_code/`** — Retrieves the current TOTP code of TOTP-enabled credential secrets (API 3.3) as masked outputs
+- **`update_secret/`** — Updates an existing credential, text, or file secret by ID (full replacement PUT)
 
 All actions are written in Python 3.12 on Alpine Linux containers and use the `beyondtrust-bips-library` SDK.
 
@@ -18,6 +19,7 @@ All actions are written in Python 3.12 on Alpine Linux containers and use the `b
 pip install -r create_secret/requirements.txt -r create_secret/requirements-dev.txt
 pip install -r get_secret/requirements.txt -r get_secret/requirements-dev.txt
 pip install -r get_totp_code/requirements.txt -r get_totp_code/requirements-dev.txt
+pip install -r update_secret/requirements.txt -r update_secret/requirements-dev.txt
 ```
 
 ### Run tests
@@ -26,17 +28,18 @@ pip install -r get_totp_code/requirements.txt -r get_totp_code/requirements-dev.
 cd create_secret && python3 -m coverage run --data-file=../.coverage.create -m unittest discover tests/unit -v -p 'test_*.py'
 cd get_secret && python3 -m coverage run --data-file=../.coverage.get -m unittest discover tests/unit -v -p 'test_*.py'
 cd get_totp_code && python3 -m coverage run --data-file=../.coverage.totp -m unittest discover tests/unit -v -p 'test_*.py'
+cd update_secret && python3 -m coverage run --data-file=../.coverage.update -m unittest discover tests/unit -v -p 'test_*.py'
 
 # Combined coverage report
-python3 -m coverage combine .coverage.create .coverage.get .coverage.totp && python3 -m coverage report
+python3 -m coverage combine .coverage.create .coverage.get .coverage.totp .coverage.update && python3 -m coverage report
 ```
 
 ### Run linters (matches CI)
 ```bash
-black --check create_secret/src get_secret/src get_totp_code/src
-isort --check-only create_secret/src get_secret/src get_totp_code/src
-flake8 create_secret/src get_secret/src get_totp_code/src
-bandit -r create_secret/src get_secret/src get_totp_code/src
+black --check create_secret/src get_secret/src get_totp_code/src update_secret/src
+isort --check-only create_secret/src get_secret/src get_totp_code/src update_secret/src
+flake8 create_secret/src get_secret/src get_totp_code/src update_secret/src
+bandit -r create_secret/src get_secret/src get_totp_code/src update_secret/src
 ```
 
 ### Local Docker testing
@@ -78,12 +81,17 @@ Auth configuration is handled inline inside `main()` (no separate function). `ge
 
 Input `secret_ids` is `[{"secret_id": "<guid>", "output_id": "<name>"}]` (max 20). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. Its retry list deliberately **omits 400** so the 400 reaches the library instead of becoming a `RetryError`.
 
+### update_secret flow
+`main()` → `validate_inputs()` (GUID, title, one content type, password, owners, TOTP — all before auth) → `set_authentication()` → `update_secret()` → sign out
+
+Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/text` or `/file`), so optional fields left empty are cleared; `FolderId` is read-only, so secrets cannot be moved. The API answers credential/text updates with **204**, but the library (≤ 3.5.1) expects 200 and raises `UpdateError(... statuscode: 204)`; the action treats exactly that error as success (`NO_CONTENT_UPDATE_ERROR`). `totp_enabled` empty leaves TOTP unchanged, `false` turns it off.
+
 ### create_secret flow
 `main()` → `set_authentication()` → `get_folder()` → `create_secret()` → sign out
 
 `get_folder()` lists all folders and matches by exact name. `create_secret()` handles three secret types (CREDENTIAL, TEXT, FILE) and optionally creates a file attachment before creating the secret record.
 
-### HTTP session config (get_secret, create_secret; get_totp_code omits 400)
+### HTTP session config (get_secret, create_secret, update_secret; get_totp_code omits 400)
 ```python
 Retry(total=3, backoff_factor=0.2, status_forcelist=[400, 408, 500, 502, 503, 504])
 # Timeouts: connect=30s, read=30s
@@ -109,7 +117,7 @@ Pre-commit hooks enforce Black, isort, Flake8, and Bandit — install with `pre-
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `linter.yml` | PR/push | Black, Flake8, isort, Bandit (all run even if one fails) |
-| `unit-tests.yml` | PR/push, tags `v*` | Runs all three test suites, combines coverage, posts coverage report to PR via orgoro/coverage |
+| `unit-tests.yml` | PR/push, tags `v*` | Runs all four test suites, combines coverage, posts coverage report to PR via orgoro/coverage |
 | `wiz.yml` | PR/push | WIZ cloud security scan |
 
 ## Key Dependencies

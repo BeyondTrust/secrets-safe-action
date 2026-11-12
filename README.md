@@ -4,8 +4,8 @@
 
 # BeyondTrust Secrets Actions
 
-This project integrates with BeyondTrust Password Safe and provides three actions for secret management: get_secret, create_secret and get_totp_code.
-The get_secret action is used to retrieve existing secrets, the create_secret action allows the creation of new secrets, and the get_totp_code action retrieves the current TOTP one-time code of a TOTP-enabled credential secret.
+This project integrates with BeyondTrust Password Safe and provides four actions for secret management: get_secret, create_secret, update_secret and get_totp_code.
+The get_secret action is used to retrieve existing secrets, the create_secret action allows the creation of new secrets, the update_secret action updates an existing secret, and the get_totp_code action retrieves the current TOTP one-time code of a TOTP-enabled credential secret.
 Detailed descriptions and usage examples for each action are provided in the following sections.
 
 ## 🚧 New changes in 2.0.0
@@ -443,9 +443,104 @@ The action is available from the release that introduces it. Pin `uses:` to that
     TOTP_CODE: ${{ steps.totp.outputs.totp_code }}
 ```
 
+## Update Secret Action
+
+This action updates an existing credential, text or file secret in BeyondTrust Secrets Safe, identified by its ID. Its inputs match the [Create Secrets Action](#create-secrets-action), with `secret_id` in place of `parent_folder_name`.
+
+> [!IMPORTANT]
+> **An update replaces the secret.** Every field is sent, so an optional input left empty (for example `secret_description`, `notes` or `urls`) clears that field on the secret. Pass the current values of the fields you want to keep. The secret stays in its folder; it cannot be moved with this action.
+
+### Prerequisites
+
+- The application must be allowed to edit the secret.
+- To change TOTP on a credential secret, BeyondInsight/Password Safe 26.3 or greater and `api_version` 3.3.
+
+Runners must use a Linux operating system. Additionally, self-hosted runners will need Docker installed.
+
+### Update Secret Inputs
+
+#### `api_key`, `client_id`, `client_secret`, `api_url`, `api_version`, `verify_ca`, `certificate`, `certificate_key`, `log_level`
+Same as for the [Create Secrets Action](#authentication-inputs).
+
+#### `secret_id`
+**Required:** ID (GUID) of the secret to update.
+
+#### `secret_title`
+**Required:** Title of the secret. Pass it even when it does not change.
+
+#### `owners`
+**Required:** Owners of the secret, in JSON format. They replace the current owners.
+```json
+[{"user_id": 1}]
+```
+Use `[{"owner_id": 1}]` with `api_version` 3.0.
+
+#### Secret content
+Set exactly one kind of content, matching the type of the secret being updated (the type cannot change):
+- **Credential secret:** `username` and `password` (both required), and optionally `password_rule_id`.
+- **Text secret:** `text`.
+- **File secret:** `file_name` and `file_content`.
+
+`password` and `text` are masked in the logs. Pass them from GitHub secrets.
+
+#### `secret_description`, `owner_id`, `owner_type`, `notes`, `urls`
+**Optional:** Same as for the [Create Secrets Action](#advanced-configuration-inputs). Left empty, the field is cleared.
+
+#### `totp_enabled`
+**Optional:** TOTP on a credential secret (`api_version` 3.3):
+- `true` sets or replaces the TOTP seed given in `totp_secret_key`.
+- `false` turns TOTP off.
+- Empty (the default) leaves the current TOTP setting unchanged.
+
+#### `totp_secret_key`
+**Optional:** TOTP seed, as a Base32 string or an `otpauth://` URI (maximum 1024 characters). Required when `totp_enabled` is `true`, and rejected otherwise. Masked in the logs; pass it from a GitHub secret.
+
+All inputs are validated before the action authenticates, so invalid input fails the step without making any API call.
+
+### Update Secret Examples
+
+The action is available from the release that introduces it. Pin `uses:` to that release's commit SHA.
+
+#### Update a credential secret and replace its TOTP seed
+
+```yaml
+- name: Update credential secret
+  uses: BeyondTrust/secrets-safe-action/update_secret@<commit-sha> # release that adds update_secret
+  with:
+    API_URL: ${{vars.API_URL}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    API_VERSION: "3.3"
+    SECRET_ID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    SECRET_TITLE: "Secret Title"
+    SECRET_DESCRIPTION: "Updated by GitHub Actions"
+    USERNAME: "username"
+    PASSWORD: ${{ secrets.SECRET_PASSWORD }}
+    TOTP_ENABLED: "true"
+    TOTP_SECRET_KEY: ${{ secrets.TOTP_SECRET_KEY }}
+    OWNERS: '[{"user_id": 1}]'
+```
+
+#### Update a text secret
+
+```yaml
+- name: Update text secret
+  uses: BeyondTrust/secrets-safe-action/update_secret@<commit-sha> # release that adds update_secret
+  with:
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    API_VERSION: "3.1"
+    SECRET_ID: "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
+    SECRET_TITLE: "Text Secret Title"
+    TEXT: ${{ secrets.TEXT_SECRET_VALUE }}
+    OWNERS: '[{"user_id": 1}]'
+```
+
 ## TLS certificate verification (`VERIFY_CA`)
 
-All three actions read the same `VERIFY_CA` environment variable, which accepts three kinds of value:
+All four actions read the same `VERIFY_CA` environment variable, which accepts three kinds of value:
 
 | Value | Behavior |
 | --- | --- |
