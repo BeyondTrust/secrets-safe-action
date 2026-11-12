@@ -498,6 +498,52 @@ def is_no_content_success(error: Exception) -> bool:
     return bool(NO_CONTENT_UPDATE_ERROR.search(str(error)))
 
 
+def get_current_folder_id(
+    secrets_safe_obj: secrets_safe.SecretsSafe, secret_type: str
+) -> str:
+    """
+    Read the secret being updated and return the ID of its folder.
+
+    The API requires FolderId on every update (it rejects the default value),
+    so the secret's current folder is sent back unchanged and the secret stays
+    where it is. The secret's type is checked against the content inputs too,
+    so a mismatch fails with a clear message before the update is sent.
+
+    Args:
+        secrets_safe_obj (SecretsSafe): Secrets Safe client.
+        secret_type (str): CREDENTIAL, TEXT_TYPE or FILE_TYPE.
+
+    Returns:
+        str: The FolderId of the secret.
+    """
+
+    try:
+        current = secrets_safe_obj.get_secret_by_id(SECRET_ID)
+    except exceptions.LookupError as e:
+        common.show_error(
+            f"Cannot read secret {SECRET_ID}: {e}. Check that the secret exists "
+            "and that the application is allowed to read and edit it.",
+            logger,
+        )
+
+    actual_type = str(current.get("SecretType") or "").lower()
+    if actual_type and actual_type != secret_type:
+        common.show_error(
+            f"Secret {SECRET_ID} is a {actual_type} secret, but the inputs are "
+            f"for a {secret_type} secret. The type of a secret cannot change.",
+            logger,
+        )
+
+    folder_id = current.get("FolderId")
+    if not folder_id:
+        common.show_error(
+            f"Cannot update secret {SECRET_ID}: its folder ID was not returned.",
+            logger,
+        )
+
+    return folder_id
+
+
 def update_secret(
     authentication_obj: authentication.Authentication,
     settings: Dict[str, Any],
@@ -505,8 +551,9 @@ def update_secret(
     """
     Update a secret in Secrets Safe.
 
-    Only the content inputs for the secret type are sent. For a file secret,
-    the file is written first and uploaded with the metadata.
+    The secret is read first to send its current FolderId, which the API
+    requires. Only the content inputs for the secret type are sent. For a file
+    secret, the file is written first and uploaded with the metadata.
 
     Args:
         authentication_obj (authentication.Authentication): Authenticated
@@ -527,6 +574,8 @@ def update_secret(
     is_credential = secret_type == CREDENTIAL
     is_file = secret_type == FILE_TYPE
 
+    folder_id = get_current_folder_id(secrets_safe_obj, secret_type)
+
     # creating file if the secret is a file secret
     if is_file:
         common.create_file(FILE_NAME, FILE_CONTENT, logger)
@@ -534,6 +583,7 @@ def update_secret(
     try:
         secrets_safe_obj.update_secret(
             secret_id=SECRET_ID,
+            folder_id=folder_id,
             title=TITLE,
             description=DESCRIPTION,
             username=USERNAME if is_credential else None,

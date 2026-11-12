@@ -39,7 +39,7 @@ inputs:
     required: false
     default: 'INFO'
   secret_id:
-    description: 'ID (GUID) of the secret to update. The secret type cannot change: set username for a credential secret, text for a text secret, or file_name and file_content for a file secret.'
+    description: 'ID (GUID) of the secret to update. The secret is read first, so it stays in its folder and its type is checked. The type cannot change: set username for a credential secret, text for a text secret, or file_name and file_content for a file secret.'
     required: true
     default: ''
   secret_title:

@@ -452,7 +452,7 @@ This action updates an existing credential, text or file secret in BeyondTrust S
 
 ### Prerequisites
 
-- The application must be allowed to edit the secret.
+- The application must be allowed to read and edit the secret. The action reads the secret first, to keep it in its current folder and to check its type.
 - To change TOTP on a credential secret, BeyondInsight/Password Safe 26.3 or greater and `api_version` 3.3.
 
 Runners must use a Linux operating system. Additionally, self-hosted runners will need Docker installed.

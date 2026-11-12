@@ -3,7 +3,7 @@
 import os
 import tempfile
 import unittest
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, patch
 
 import requests
@@ -25,6 +25,7 @@ from src.main import (
 SECRET_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 SEED = "JBSWY3DPEHPK3PXP"  # nosec B105 - test data
 OWNERS = [{"user_id": 1}]
+FOLDER_ID = "f0f0f0f0-1111-2222-3333-444444444444"
 
 BASE_INPUTS = {"SECRET_ID": SECRET_ID, "TITLE": "Title", "OWNERS": '[{"user_id": 1}]'}
 CREDENTIAL_INPUTS = {**BASE_INPUTS, "USERNAME": "user", "PASSWORD": "p4ss"}
@@ -266,13 +267,31 @@ class TestSmallParsers(InputsTestCase):
         self.assertEqual(get_totp_settings(main.TEXT_TYPE), (None, None))
 
 
+def current_secret(secret_type=main.CREDENTIAL, **fields):
+    """Return a GET Secrets-Safe/Secrets/{id} response for the given type."""
+    secret = {"SecretType": secret_type.capitalize(), "FolderId": FOLDER_ID}
+    secret.update(fields)
+    return secret
+
+
+@contextmanager
+def mocked_sdk(secret_type=main.CREDENTIAL, **fields):
+    """Patch SecretsSafe; get_secret_by_id returns a secret of secret_type."""
+    with patch("src.main.secrets_safe.SecretsSafe", autospec=True) as sdk:
+        sdk.return_value.get_secret_by_id.return_value = current_secret(
+            secret_type, **fields
+        )
+        yield sdk
+
+
 class TestUpdateSecret(InputsTestCase):
     """Tests for update_secret, with the library mocked."""
 
     def _update(self, secret_type, **inputs):
         """Run update_secret and return the kwargs sent to the library."""
-        with patch("src.main.secrets_safe.SecretsSafe", autospec=True) as sdk:
+        with mocked_sdk(secret_type) as sdk:
             update_secret(MagicMock(), settings(secret_type, **inputs))
+        sdk.return_value.get_secret_by_id.assert_called_once_with(SECRET_ID)
         return sdk.return_value.update_secret.call_args.kwargs
 
     @patch("src.main.common.show_error")
@@ -294,6 +313,7 @@ class TestUpdateSecret(InputsTestCase):
             kwargs,
             {
                 "secret_id": SECRET_ID,
+                "folder_id": FOLDER_ID,
                 "title": "Title",
                 "description": "d",
                 "username": "user",
@@ -351,7 +371,7 @@ class TestUpdateSecret(InputsTestCase):
         )
         for error, text in cases:
             with self.subTest(text=text):
-                with patch("src.main.secrets_safe.SecretsSafe", autospec=True) as sdk:
+                with mocked_sdk() as sdk:
                     sdk.return_value.update_secret.side_effect = error
                     with self.assertRaises(SystemExit):
                         update_secret(MagicMock(), settings())
@@ -362,13 +382,53 @@ class TestUpdateSecret(InputsTestCase):
         """The library's 204 UpdateError means the update was applied."""
         self.set_inputs(**CREDENTIAL_INPUTS)
 
-        with patch("src.main.secrets_safe.SecretsSafe", autospec=True) as sdk:
+        with mocked_sdk() as sdk:
             sdk.return_value.update_secret.side_effect = main.exceptions.UpdateError(
                 "Error running put request, message: , statuscode: 204"
             )
             update_secret(MagicMock(), settings())
 
         mock_show_error.assert_not_called()
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_current_secret_checks(self, mock_show_error):
+        """
+        The secret is read before the update; a read failure, a type mismatch
+        or a missing FolderId fails the step without sending the update.
+        """
+        self.set_inputs(**CREDENTIAL_INPUTS)
+        cases = (
+            ({"SecretType": "Text"}, "is a text secret, but the inputs are for a"),
+            ({"SecretType": "File"}, "is a file secret, but the inputs are for a"),
+            ({"FolderId": None}, "its folder ID was not returned"),
+        )
+        for fields, text in cases:
+            with self.subTest(text=text):
+                with mocked_sdk(**fields) as sdk, self.assertRaises(SystemExit):
+                    update_secret(MagicMock(), settings())
+                sdk.return_value.update_secret.assert_not_called()
+                self.assertIn(text, mock_show_error.call_args[0][0])
+
+        with mocked_sdk() as sdk, self.assertRaises(SystemExit):
+            sdk.return_value.get_secret_by_id.side_effect = main.exceptions.LookupError(
+                "404 Not Found"
+            )
+            update_secret(MagicMock(), settings())
+        sdk.return_value.update_secret.assert_not_called()
+        self.assertIn("Cannot read secret", mock_show_error.call_args[0][0])
+
+    @patch("src.main.common.show_error")
+    def test_type_check_skipped_without_secret_type(self, mock_show_error):
+        """If the read does not report a type, only the folder is required."""
+        self.set_inputs(**CREDENTIAL_INPUTS)
+
+        with mocked_sdk(SecretType=None) as sdk:
+            update_secret(MagicMock(), settings())
+
+        mock_show_error.assert_not_called()
+        self.assertEqual(
+            sdk.return_value.update_secret.call_args.kwargs["folder_id"], FOLDER_ID
+        )
 
     def test_is_no_content_success(self):
         self.assertTrue(is_no_content_success(Exception("message: , statuscode: 204")))
@@ -388,12 +448,16 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
     checked against the library code itself rather than a mock of it.
     """
 
-    def _authentication(self, status_code, api_version="3.3"):
+    def _authentication(self, status_code, api_version="3.3", secret_type=None):
         auth = MagicMock()
         auth._api_url = "https://example.com/BeyondTrust/api/public/v3"
         auth._api_version = api_version
         auth._timeout_connection_seconds = 30
         auth._timeout_request_seconds = 30
+        secret = current_secret(secret_type or main.CREDENTIAL)
+        auth._req.get.return_value = MagicMock(
+            status_code=200, json=MagicMock(return_value=secret)
+        )
         auth._req.put.return_value = MagicMock(status_code=status_code, text="")
         return auth
 
@@ -410,13 +474,14 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
         self.assertIn(f"/secrets-safe/secrets/{SECRET_ID}/?version=3.3", url)
         self.assertNotIn("/text", url)
         self.assertEqual(body["Username"], "user")
+        self.assertEqual(body["FolderId"], FOLDER_ID)
         self.assertIs(body["TotpEnabled"], True)
         self.assertEqual(body["TotpSecretKey"], SEED)
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_text_204_succeeds(self, mock_show_error):
         self.set_inputs(**BASE_INPUTS, TEXT="t")
-        auth = self._authentication(204)
+        auth = self._authentication(204, secret_type=main.TEXT_TYPE)
 
         update_secret(auth, settings(main.TEXT_TYPE))
 
@@ -426,6 +491,10 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
             auth._req.put.call_args.kwargs["url"],
         )
         self.assertEqual(auth._req.put.call_args.kwargs["json"]["Text"], "t")
+        self.assertEqual(auth._req.put.call_args.kwargs["json"]["FolderId"], FOLDER_ID)
+        self.assertIn(
+            f"/secrets-safe/secrets/{SECRET_ID}", auth._req.get.call_args[0][0]
+        )
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_404_fails(self, mock_show_error):

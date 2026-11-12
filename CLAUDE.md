@@ -82,9 +82,9 @@ Auth configuration is handled inline inside `main()` (no separate function). `ge
 Input `secret_ids` is `[{"secret_id": "<guid>", "output_id": "<name>"}]` (max 20). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. Its retry list deliberately **omits 400** so the 400 reaches the library instead of becoming a `RetryError`.
 
 ### update_secret flow
-`main()` → `validate_inputs()` (GUID, title, one content type, password, owners, TOTP — all before auth) → `set_authentication()` → `update_secret()` → sign out
+`main()` → `validate_inputs()` (GUID, title, one content type, password, owners, TOTP — all before auth) → `set_authentication()` → `update_secret()` (`get_current_folder_id()` → PUT) → sign out
 
-Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/text` or `/file`), so optional fields left empty are cleared; `FolderId` is read-only, so secrets cannot be moved. The API answers credential/text updates with **204**, but the library (≤ 3.5.1) expects 200 and raises `UpdateError(... statuscode: 204)`; the action treats exactly that error as success (`NO_CONTENT_UPDATE_ERROR`). `totp_enabled` empty leaves TOTP unchanged, `false` turns it off.
+Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/text` or `/file`), so optional fields left empty are cleared. The live API rejects an update without `FolderId` (although the Swagger marks it read-only), so `get_current_folder_id()` first reads the secret with `get_secret_by_id()`, sends its current `FolderId` back (the secret is never moved) and checks its `SecretType` matches the content inputs. The API answers credential/text updates with **204**, but the library (≤ 3.5.1) expects 200 and raises `UpdateError(... statuscode: 204)`; the action treats exactly that error as success (`NO_CONTENT_UPDATE_ERROR`). `totp_enabled` empty leaves TOTP unchanged, `false` turns it off.
 
 ### create_secret flow
 `main()` → `set_authentication()` → `get_folder()` → `create_secret()` → sign out
