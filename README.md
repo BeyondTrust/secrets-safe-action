@@ -448,11 +448,11 @@ The action is available from the release that introduces it. Pin `uses:` to that
 This action updates an existing credential, text or file secret in BeyondTrust Secrets Safe, identified by its ID. Its inputs match the [Create Secrets Action](#create-secrets-action), with `secret_id` in place of `parent_folder_name`.
 
 > [!IMPORTANT]
-> **An update replaces the secret.** Every field is sent, so an optional input left empty (for example `secret_description`, `notes` or `urls`) clears that field on the secret. Pass the current values of the fields you want to keep. The secret stays in its folder; it cannot be moved with this action.
+> **Inputs left empty keep their current values.** The action reads the secret first and sends back its current title, description, owners, notes, URLs, password rule and (for credential secrets) password for every input you leave empty, the same way the `ps-cli secrets update` command does. A field can therefore be changed but not cleared. The secret stays in its folder; it cannot be moved with this action.
 
 ### Prerequisites
 
-- The application must be allowed to read and edit the secret. The action reads the secret first, to keep it in its current folder and to check its type.
+- The application must be allowed to read and edit the secret. The action reads the secret first, to keep the values you don't change and to check its type.
 - To change TOTP on a credential secret, BeyondInsight/Password Safe 26.3 or greater and `api_version` 3.3.
 
 Runners must use a Linux operating system. Additionally, self-hosted runners will need Docker installed.
@@ -465,26 +465,16 @@ Same as for the [Create Secrets Action](#authentication-inputs).
 #### `secret_id`
 **Required:** ID (GUID) of the secret to update.
 
-#### `secret_title`
-**Required:** Title of the secret. Pass it even when it does not change.
-
-#### `owners`
-**Required:** Owners of the secret, in JSON format. They replace the current owners.
-```json
-[{"user_id": 1}]
-```
-Use `[{"owner_id": 1}]` with `api_version` 3.0.
-
 #### Secret content
 Set exactly one kind of content, matching the type of the secret being updated (the type cannot change):
-- **Credential secret:** `username` and `password` (both required), and optionally `password_rule_id`.
-- **Text secret:** `text`.
-- **File secret:** `file_name` and `file_content`.
+- **Credential secret:** `username` (required). `password` and `password_rule_id` are optional: left empty, the current values are kept.
+- **Text secret:** `text` (required: text content cannot be read back).
+- **File secret:** `file_name` and `file_content` (required: file content cannot be read back).
 
-`password` and `text` are masked in the logs. Pass them from GitHub secrets.
+`password` and `text` are masked in the logs, and so is a current password that is kept. Pass them from GitHub secrets.
 
-#### `secret_description`, `owner_id`, `owner_type`, `notes`, `urls`
-**Optional:** Same as for the [Create Secrets Action](#advanced-configuration-inputs). Left empty, the field is cleared.
+#### `secret_title`, `secret_description`, `owners`, `owner_id`, `owner_type`, `notes`, `urls`
+**Optional:** Same as for the [Create Secrets Action](#advanced-configuration-inputs). Left empty, the current value is kept. `owners` replaces the current owners when it is set, for example `[{"user_id": 1}]` (`[{"owner_id": 1}]` with `api_version` 3.0).
 
 #### `totp_enabled`
 **Optional:** TOTP on a credential secret (`api_version` 3.3):
@@ -500,6 +490,23 @@ All inputs are validated before the action authenticates, so invalid input fails
 ### Update Secret Examples
 
 The action is available from the release that introduces it. Pin `uses:` to that release's commit SHA.
+
+#### Rotate a credential password and keep everything else
+
+Only the username (required for a credential secret) and the new password are given; the title, description, owners, notes, URLs and TOTP setting are kept.
+
+```yaml
+- name: Rotate password
+  uses: BeyondTrust/secrets-safe-action/update_secret@<commit-sha> # release that adds update_secret
+  with:
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    API_VERSION: "3.3"
+    SECRET_ID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    USERNAME: "username"
+    PASSWORD: ${{ secrets.NEW_PASSWORD }}
+```
 
 #### Update a credential secret and replace its TOTP seed
 

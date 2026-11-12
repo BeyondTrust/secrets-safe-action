@@ -13,7 +13,9 @@ API:
     - PUT Secrets-Safe/Secrets/{secretId}/text   (text secret)
     - PUT Secrets-Safe/Secrets/{secretId}/file   (file secret)
 
-Each PUT replaces the secret, so optional fields left empty are cleared.
+Each PUT replaces the secret, so the existing secret is read first and every
+input left empty keeps its current value, as in the ps-integration-cli
+"secrets update" command.
 """
 
 import json
@@ -426,27 +428,14 @@ def validate_inputs() -> Dict[str, Any]:
 
     validate_secret_id(SECRET_ID)
 
-    if not TITLE:
-        common.show_error(
-            "secret_title is required. The update replaces the secret, so pass "
-            "the title even when it does not change.",
-            logger,
-        )
-
+    # Inputs left empty keep the secret's current values (see
+    # build_update_kwargs), so only the content that can't be read back is
+    # required: username, text, or file_name with file_content.
     secret_type = get_secret_type()
-
-    if secret_type == CREDENTIAL and not PASSWORD:
-        common.show_error("password is required to update a credential secret.", logger)
 
     totp_enabled, totp_secret_key = get_totp_settings(secret_type)
 
     owners_list, urls_list = parse_json_parameters()
-    if not owners_list:
-        common.show_error(
-            "owners is required. The update replaces the secret's owners, for "
-            'example [{"user_id": 1}] (API 3.1+) or [{"owner_id": 1}] (API 3.0).',
-            logger,
-        )
 
     return {
         "secret_type": secret_type,
@@ -498,27 +487,26 @@ def is_no_content_success(error: Exception) -> bool:
     return bool(NO_CONTENT_UPDATE_ERROR.search(str(error)))
 
 
-def get_current_folder_id(
+def get_secret_to_update(
     secrets_safe_obj: secrets_safe.SecretsSafe, secret_type: str
-) -> str:
+) -> Dict[str, Any]:
     """
-    Read the secret being updated and return the ID of its folder.
+    Get the secret being updated and check that it is of secret_type.
 
-    The API requires FolderId on every update (it rejects the default value),
-    so the secret's current folder is sent back unchanged and the secret stays
-    where it is. The secret's type is checked against the content inputs too,
-    so a mismatch fails with a clear message before the update is sent.
+    The type of a secret can't change, and a different type would send the
+    update to the endpoint of that type, which the API rejects. A secret that
+    does not report its type is accepted.
 
     Args:
         secrets_safe_obj (SecretsSafe): Secrets Safe client.
         secret_type (str): CREDENTIAL, TEXT_TYPE or FILE_TYPE.
 
     Returns:
-        str: The FolderId of the secret.
+        Dict[str, Any]: The existing secret.
     """
 
     try:
-        current = secrets_safe_obj.get_secret_by_id(SECRET_ID)
+        secret_dict = secrets_safe_obj.get_secret_by_id(SECRET_ID)
     except exceptions.LookupError as e:
         common.show_error(
             f"Cannot read secret {SECRET_ID}: {e}. Check that the secret exists "
@@ -526,22 +514,101 @@ def get_current_folder_id(
             logger,
         )
 
-    actual_type = str(current.get("SecretType") or "").lower()
-    if actual_type and actual_type != secret_type:
+    current_type = str(secret_dict.get("SecretType") or "").lower()
+    if current_type and current_type != secret_type:
         common.show_error(
-            f"Secret {SECRET_ID} is a {actual_type} secret, but the inputs are "
+            f"Secret {SECRET_ID} is a {current_type} secret, but the inputs are "
             f"for a {secret_type} secret. The type of a secret cannot change.",
             logger,
         )
 
-    folder_id = current.get("FolderId")
-    if not folder_id:
-        common.show_error(
-            f"Cannot update secret {SECRET_ID}: its folder ID was not returned.",
-            logger,
-        )
+    # The existing password is sent back when none is given; keep it out of
+    # the logs like the password input.
+    if secret_type == CREDENTIAL and secret_dict.get("Password"):
+        mask_secret("add-mask", str(secret_dict["Password"]))
 
-    return folder_id
+    return secret_dict
+
+
+def to_library_owners(owners: Optional[list]) -> Optional[list]:
+    """
+    Convert owners read from an existing secret to the library's format.
+
+    Reads return owners with API field names ({"UserId": 1, "Name": ...}),
+    but update_secret validates owners with its own names ({"user_id": 1})
+    and rejects the API form. Empty values are dropped.
+
+    Args:
+        owners (Optional[list]): The Owners of the existing secret.
+
+    Returns:
+        Optional[list]: The owners as update_secret expects them, or None.
+    """
+
+    if not owners:
+        return None
+
+    return [
+        {
+            re.sub(r"(?<!^)(?=[A-Z])", "_", key).lower(): value
+            for key, value in owner.items()
+            if value is not None
+        }
+        for owner in owners
+    ]
+
+
+def build_update_kwargs(
+    settings: Dict[str, Any], secret_dict: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Build the update_secret keyword arguments.
+
+    The update replaces the secret, so every field is sent: an input that is
+    not provided keeps the existing secret's value instead of clearing it,
+    following the ps-integration-cli "secrets update" command. Text and file
+    content can't be read back, so they always come from the inputs. TOTP is
+    the exception: TotpSecretKey is never returned on reads, and omitting the
+    TOTP fields leaves TOTP unchanged. The folder is always kept: the API
+    requires FolderId, and this action does not move secrets.
+
+    Args:
+        settings (Dict[str, Any]): The checked settings from validate_inputs().
+        secret_dict (Dict[str, Any]): The existing secret.
+
+    Returns:
+        Dict[str, Any]: The keyword arguments for SecretsSafe.update_secret().
+    """
+
+    secret_type = settings["secret_type"]
+
+    if secret_type == CREDENTIAL:
+        content = {
+            "username": USERNAME,
+            "password": PASSWORD or secret_dict.get("Password"),
+            "password_rule_id": (
+                settings["password_rule_id"] or secret_dict.get("PasswordRuleID")
+            ),
+        }
+    elif secret_type == TEXT_TYPE:
+        content = {"text": TEXT}
+    else:
+        content = {"file_path": FILE_NAME}
+
+    return {
+        "secret_id": SECRET_ID,
+        "folder_id": secret_dict.get("FolderId"),
+        "title": TITLE or secret_dict.get("Title"),
+        "description": DESCRIPTION or secret_dict.get("Description"),
+        **content,
+        "owner_id": settings["owner_id"] or secret_dict.get("OwnerId"),
+        "owner_type": OWNER_TYPE or secret_dict.get("OwnerType"),
+        "owners": settings["owners"] or to_library_owners(secret_dict.get("Owners")),
+        "notes": NOTES or secret_dict.get("Notes"),
+        "urls": settings["urls"] or secret_dict.get("Urls"),
+        "totp_enabled": settings["totp_enabled"],
+        "totp_secret_key": settings["totp_secret_key"],
+    }
 
 
 def update_secret(
@@ -551,9 +618,10 @@ def update_secret(
     """
     Update a secret in Secrets Safe.
 
-    The secret is read first to send its current FolderId, which the API
-    requires. Only the content inputs for the secret type are sent. For a file
-    secret, the file is written first and uploaded with the metadata.
+    The secret is read first, and every input left empty keeps its current
+    value (see build_update_kwargs). Only the content inputs for the secret
+    type are sent. For a file secret, the file is written first and uploaded
+    with the metadata.
 
     Args:
         authentication_obj (authentication.Authentication): Authenticated
@@ -571,34 +639,20 @@ def update_secret(
 
     logger.info("Updating secret")
 
-    is_credential = secret_type == CREDENTIAL
-    is_file = secret_type == FILE_TYPE
+    secret_dict = get_secret_to_update(secrets_safe_obj, secret_type)
 
-    folder_id = get_current_folder_id(secrets_safe_obj, secret_type)
+    if not secret_dict.get("FolderId"):
+        common.show_error(
+            f"Cannot update secret {SECRET_ID}: its folder ID was not returned.",
+            logger,
+        )
 
     # creating file if the secret is a file secret
-    if is_file:
+    if secret_type == FILE_TYPE:
         common.create_file(FILE_NAME, FILE_CONTENT, logger)
 
     try:
-        secrets_safe_obj.update_secret(
-            secret_id=SECRET_ID,
-            folder_id=folder_id,
-            title=TITLE,
-            description=DESCRIPTION,
-            username=USERNAME if is_credential else None,
-            password=PASSWORD if is_credential else None,
-            text=TEXT if secret_type == TEXT_TYPE else None,
-            file_path=FILE_NAME if is_file else None,
-            owner_id=settings["owner_id"],
-            owner_type=OWNER_TYPE or None,
-            owners=settings["owners"],
-            password_rule_id=settings["password_rule_id"],
-            notes=NOTES,
-            urls=settings["urls"],
-            totp_enabled=settings["totp_enabled"],
-            totp_secret_key=settings["totp_secret_key"],
-        )
+        secrets_safe_obj.update_secret(**build_update_kwargs(settings, secret_dict))
 
         logger.info("Secret updated successfully")
     except exceptions.UpdateError as e:

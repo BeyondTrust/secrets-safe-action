@@ -17,6 +17,7 @@ from src.main import (
     mask_sensitive_inputs,
     parse_optional_bool,
     parse_optional_int,
+    to_library_owners,
     update_secret,
     validate_inputs,
     validate_secret_id,
@@ -26,6 +27,27 @@ SECRET_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 SEED = "JBSWY3DPEHPK3PXP"  # nosec B105 - test data
 OWNERS = [{"user_id": 1}]
 FOLDER_ID = "f0f0f0f0-1111-2222-3333-444444444444"
+URL_ID = "11111111-aaaa-bbbb-cccc-222222222222"
+
+# A credential secret as GET Secrets-Safe/Secrets/{id} returns it.
+EXISTING_CREDENTIAL = {
+    "Id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "SecretType": "Credential",
+    "FolderId": "f0f0f0f0-1111-2222-3333-444444444444",
+    "Title": "Current title",
+    "Description": "Current description",
+    "Username": "current-user",
+    "Password": "current-pass",
+    "Owners": [
+        {"UserId": 7, "GroupId": None, "Name": "admin", "Email": "admin@example.com"}
+    ],
+    "Notes": "Current notes",
+    "Urls": [
+        {"Id": URL_ID, "CredentialId": SECRET_ID, "Url": "https://current.example"}
+    ],
+    "PasswordRuleID": 4,
+    "TotpEnabled": True,
+}
 
 BASE_INPUTS = {"SECRET_ID": SECRET_ID, "TITLE": "Title", "OWNERS": '[{"user_id": 1}]'}
 CREDENTIAL_INPUTS = {**BASE_INPUTS, "USERNAME": "user", "PASSWORD": "p4ss"}
@@ -179,6 +201,18 @@ class TestValidateInputs(InputsTestCase):
         self.set_inputs(**BASE_INPUTS, FILE_NAME="f.txt", FILE_CONTENT="c")
         self.assertEqual(validate_inputs(), settings(main.FILE_TYPE))
 
+    def test_minimal_inputs(self):
+        """Only secret_id and the content that can't be read back are needed."""
+        cases = (
+            ({"USERNAME": "user"}, main.CREDENTIAL),
+            ({"TEXT": "t"}, main.TEXT_TYPE),
+            ({"FILE_NAME": "f.txt", "FILE_CONTENT": "c"}, main.FILE_TYPE),
+        )
+        for inputs, secret_type in cases:
+            with self.subTest(secret_type=secret_type):
+                self.set_inputs(SECRET_ID=SECRET_ID, **inputs)
+                self.assertEqual(validate_inputs(), settings(secret_type, owners=None))
+
     def test_credential_with_totp(self):
         self.set_inputs(**CREDENTIAL_INPUTS, TOTP_ENABLED="true", TOTP_SECRET_KEY=SEED)
         self.assertEqual(
@@ -196,12 +230,8 @@ class TestValidateInputs(InputsTestCase):
         cases = (
             ({**CREDENTIAL_INPUTS, "SECRET_ID": ""}, "Invalid secret_id"),
             ({**CREDENTIAL_INPUTS, "SECRET_ID": "not-a-guid"}, "Invalid secret_id"),
-            ({**CREDENTIAL_INPUTS, "TITLE": ""}, "secret_title is required"),
-            ({**CREDENTIAL_INPUTS, "PASSWORD": ""}, "password is required"),
             ({**CREDENTIAL_INPUTS, "OWNER_ID": "abc"}, "owner_id"),
             ({**CREDENTIAL_INPUTS, "PASSWORD_RULE_ID": "1.5"}, "password_rule_id"),
-            ({**CREDENTIAL_INPUTS, "OWNERS": ""}, "owners is required"),
-            ({**CREDENTIAL_INPUTS, "OWNERS": "[]"}, "owners is required"),
             ({**CREDENTIAL_INPUTS, "OWNERS": "{bad"}, "Invalid JSON format for owners"),
             ({**CREDENTIAL_INPUTS, "URLS": "{bad"}, "Invalid JSON format for urls"),
             ({**CREDENTIAL_INPUTS, "TEXT": "t"}, "exactly one kind"),
@@ -275,10 +305,13 @@ def current_secret(secret_type=main.CREDENTIAL, **fields):
 
 
 @contextmanager
-def mocked_sdk(secret_type=main.CREDENTIAL, **fields):
-    """Patch SecretsSafe; get_secret_by_id returns a secret of secret_type."""
+def mocked_sdk(secret_type=main.CREDENTIAL, existing=None, **fields):
+    """
+    Patch SecretsSafe; get_secret_by_id returns `existing`, or a secret of
+    secret_type with only a type and a folder.
+    """
     with patch("src.main.secrets_safe.SecretsSafe", autospec=True) as sdk:
-        sdk.return_value.get_secret_by_id.return_value = current_secret(
+        sdk.return_value.get_secret_by_id.return_value = existing or current_secret(
             secret_type, **fields
         )
         yield sdk
@@ -318,8 +351,6 @@ class TestUpdateSecret(InputsTestCase):
                 "description": "d",
                 "username": "user",
                 "password": "p4ss",
-                "text": None,
-                "file_path": None,
                 "owner_id": 7,
                 "owner_type": None,
                 "owners": [{"owner_id": 1}],
@@ -338,8 +369,9 @@ class TestUpdateSecret(InputsTestCase):
         kwargs = self._update(main.TEXT_TYPE)
 
         self.assertEqual(kwargs["text"], "t")
-        self.assertIsNone(kwargs["username"])
-        self.assertIsNone(kwargs["file_path"])
+        # Only the content of the secret's own type is sent.
+        for key in ("username", "password", "password_rule_id", "file_path"):
+            self.assertNotIn(key, kwargs)
 
     @patch("src.main.common.create_file")
     def test_file_update_writes_the_file_first(self, mock_create_file):
@@ -349,7 +381,7 @@ class TestUpdateSecret(InputsTestCase):
 
         mock_create_file.assert_called_once_with("f.txt", "c", main.logger)
         self.assertEqual(kwargs["file_path"], "f.txt")
-        self.assertIsNone(kwargs["text"])
+        self.assertNotIn("text", kwargs)
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_errors(self, mock_show_error):
@@ -430,6 +462,99 @@ class TestUpdateSecret(InputsTestCase):
             sdk.return_value.update_secret.call_args.kwargs["folder_id"], FOLDER_ID
         )
 
+    @patch("src.main.common.show_error")
+    def test_empty_inputs_keep_current_values(self, mock_show_error):
+        """
+        Inputs left empty keep the existing secret's values, as in the CLI's
+        `secrets update`, instead of clearing them.
+        """
+        self.set_inputs(SECRET_ID=SECRET_ID, USERNAME="user")
+
+        with mocked_sdk(existing=EXISTING_CREDENTIAL) as sdk, patch("builtins.print"):
+            update_secret(MagicMock(), settings(owners=None))
+
+        mock_show_error.assert_not_called()
+        self.assertEqual(
+            sdk.return_value.update_secret.call_args.kwargs,
+            {
+                "secret_id": SECRET_ID,
+                "folder_id": FOLDER_ID,
+                "title": "Current title",
+                "description": "Current description",
+                "username": "user",
+                "password": "current-pass",
+                "password_rule_id": 4,
+                "owner_id": None,
+                "owner_type": None,
+                "owners": [
+                    {"user_id": 7, "name": "admin", "email": "admin@example.com"}
+                ],
+                "notes": "Current notes",
+                "urls": EXISTING_CREDENTIAL["Urls"],
+                # TOTP is left unchanged by sending nothing.
+                "totp_enabled": None,
+                "totp_secret_key": None,
+            },
+        )
+
+    @patch("src.main.common.show_error")
+    def test_given_inputs_replace_current_values(self, mock_show_error):
+        """Inputs that are set win over the existing secret's values."""
+        self.set_inputs(
+            **{**CREDENTIAL_INPUTS, "TITLE": "New title"},
+            DESCRIPTION="New description",
+            NOTES="New notes",
+            OWNER_TYPE="User",
+        )
+        new_urls = [{"url": "https://new.example"}]
+
+        with mocked_sdk(existing=EXISTING_CREDENTIAL) as sdk, patch("builtins.print"):
+            update_secret(
+                MagicMock(),
+                settings(urls=new_urls, password_rule_id=9, owner_id=3),
+            )
+
+        kwargs = sdk.return_value.update_secret.call_args.kwargs
+        self.assertEqual(kwargs["title"], "New title")
+        self.assertEqual(kwargs["description"], "New description")
+        self.assertEqual(kwargs["notes"], "New notes")
+        self.assertEqual(kwargs["password"], "p4ss")
+        self.assertEqual(kwargs["password_rule_id"], 9)
+        self.assertEqual(kwargs["owner_id"], 3)
+        self.assertEqual(kwargs["owner_type"], "User")
+        self.assertEqual(kwargs["owners"], OWNERS)
+        self.assertEqual(kwargs["urls"], new_urls)
+        # The folder is always the current one: secrets are not moved.
+        self.assertEqual(kwargs["folder_id"], FOLDER_ID)
+
+    def test_current_password_is_masked(self):
+        """A password kept from the existing secret is masked like the input."""
+        self.set_inputs(SECRET_ID=SECRET_ID, USERNAME="user")
+
+        with mocked_sdk(existing=EXISTING_CREDENTIAL), patch(
+            "builtins.print"
+        ) as mock_print:
+            update_secret(MagicMock(), settings(owners=None))
+
+        mock_print.assert_any_call("::add-mask ::current-pass")
+
+    def test_to_library_owners(self):
+        """Owners read back are converted to the names update_secret validates."""
+        self.assertIsNone(to_library_owners(None))
+        self.assertIsNone(to_library_owners([]))
+        self.assertEqual(
+            to_library_owners(
+                [
+                    {"UserId": 7, "GroupId": None, "Name": "admin", "Email": None},
+                    {"OwnerId": 3, "Owner": "ops", "Email": "ops@example.com"},
+                ]
+            ),
+            [
+                {"user_id": 7, "name": "admin"},
+                {"owner_id": 3, "owner": "ops", "email": "ops@example.com"},
+            ],
+        )
+
     def test_is_no_content_success(self):
         self.assertTrue(is_no_content_success(Exception("message: , statuscode: 204")))
         for message in (
@@ -448,13 +573,15 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
     checked against the library code itself rather than a mock of it.
     """
 
-    def _authentication(self, status_code, api_version="3.3", secret_type=None):
+    def _authentication(
+        self, status_code, api_version="3.3", secret_type=None, existing=None
+    ):
         auth = MagicMock()
         auth._api_url = "https://example.com/BeyondTrust/api/public/v3"
         auth._api_version = api_version
         auth._timeout_connection_seconds = 30
         auth._timeout_request_seconds = 30
-        secret = current_secret(secret_type or main.CREDENTIAL)
+        secret = existing or current_secret(secret_type or main.CREDENTIAL)
         auth._req.get.return_value = MagicMock(
             status_code=200, json=MagicMock(return_value=secret)
         )
@@ -495,6 +622,35 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
         self.assertIn(
             f"/secrets-safe/secrets/{SECRET_ID}", auth._req.get.call_args[0][0]
         )
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_minimal_update_keeps_current_values(self, mock_show_error):
+        """
+        With only secret_id and username, the library accepts the values read
+        from the existing secret (including its owners, after conversion) and
+        sends them back.
+        """
+        self.set_inputs(SECRET_ID=SECRET_ID, USERNAME="user")
+        auth = self._authentication(204, existing=EXISTING_CREDENTIAL)
+
+        with patch("builtins.print"):
+            update_secret(auth, settings(owners=None))
+
+        mock_show_error.assert_not_called()
+        body = auth._req.put.call_args.kwargs["json"]
+        self.assertEqual(body["Title"], "Current title")
+        self.assertEqual(body["Description"], "Current description")
+        self.assertEqual(body["Username"], "user")
+        self.assertEqual(body["Password"], "current-pass")
+        self.assertEqual(body["Notes"], "Current notes")
+        # The owner read back is sent back as it was (None fields dropped).
+        self.assertEqual(
+            body["Owners"],
+            [{"UserId": 7, "Name": "admin", "Email": "admin@example.com"}],
+        )
+        self.assertEqual(body["Urls"], EXISTING_CREDENTIAL["Urls"])
+        self.assertEqual(body["FolderId"], FOLDER_ID)
+        self.assertNotIn("TotpSecretKey", {k for k, v in body.items() if v})
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_404_fails(self, mock_show_error):
