@@ -27,7 +27,7 @@ API_KEY = env.get("API_KEY")
 CLIENT_ID = env.get("CLIENT_ID")
 CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
-API_VERSION = env.get("API_VERSION")
+API_VERSION = env.get("API_VERSION", "").strip() or "3.3"
 # VERIFY_CA is resolved below, once the logger exists to report a bad value.
 
 SECRET_ID = env.get("INPUT_SECRET_ID", "").strip() or None
