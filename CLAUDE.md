@@ -79,7 +79,7 @@ Auth configuration is handled inline inside `main()` (no separate function). `ge
 ### get_totp_code flow
 `main()` → `validate_secret_id()` (GUID check before auth) → `set_authentication()` → `write_totp_code()` → sign out
 
-Input `secret_id` is one secret GUID; the masked code is written to the fixed output `totp_code` (one step per secret). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. Its retry list deliberately **omits 400** so the 400 reaches the library instead of becoming a `RetryError`.
+Input `secret_id` is one secret GUID; the masked code is written to the fixed output `totp_code` (one step per secret), and the response's `ValidFromUtc` / `ValidToUtc` to `valid_from_utc` / `valid_to_utc` (unmasked, `""` when absent). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. Its retry list deliberately **omits 400** so the 400 reaches the library instead of becoming a `RetryError`.
 
 ### update_secret flow
 `main()` → `validate_inputs()` (GUID, one content type, TOTP, integers, JSON — all before auth) → `set_authentication()` → `update_secret()` (`get_secret_to_update()` → `build_update_kwargs()` → PUT) → sign out

@@ -46,7 +46,14 @@ class TestMain(unittest.TestCase):
 
         get_totp_code_mock.assert_called_once_with(SECRET_ID)
         mock_print.assert_any_call("::add-mask ::123456")
-        append_output_mock.assert_called_once_with("totp_code", "123456")
+        self.assertEqual(
+            [c.args for c in append_output_mock.call_args_list],
+            [
+                ("totp_code", "123456"),
+                ("valid_from_utc", "2026-11-09T10:00:00Z"),
+                ("valid_to_utc", "2026-11-09T10:00:30Z"),
+            ],
+        )
         sign_app_out_mock.assert_called_once()
 
     @patch("src.main.SECRET_ID", SECRET_ID)
@@ -168,17 +175,45 @@ class TestGetTotpCode(unittest.TestCase):
     @patch("src.main.append_output")
     @patch("src.main.mask_secret")
     def test_code_is_masked_before_it_is_written(self, mock_mask, mock_append):
-        """The code is masked before it is written to the totp_code output."""
+        """
+        The code is masked before any output is written; the validity window
+        is written as is, and only the code is masked.
+        """
         events = []
         mock_mask.side_effect = lambda _, code: events.append(("mask", code))
         mock_append.side_effect = lambda name, code: events.append((name, code))
         secrets_safe_obj = MagicMock()
-        secrets_safe_obj.get_secret_totp_code.return_value = {"Code": 654321}
+        secrets_safe_obj.get_secret_totp_code.return_value = {
+            "Code": 654321,
+            "ValidFromUtc": "2026-11-13T10:00:00Z",
+            "ValidToUtc": "2026-11-13T10:00:30Z",
+        }
 
         main.write_totp_code(secrets_safe_obj, SECRET_ID)
 
-        self.assertEqual(events, [("mask", "654321"), ("totp_code", "654321")])
+        self.assertEqual(
+            events,
+            [
+                ("mask", "654321"),
+                ("totp_code", "654321"),
+                ("valid_from_utc", "2026-11-13T10:00:00Z"),
+                ("valid_to_utc", "2026-11-13T10:00:30Z"),
+            ],
+        )
         secrets_safe_obj.get_secret_totp_code.assert_called_once_with(SECRET_ID)
+
+    def test_missing_validity_window_is_empty(self):
+        """A response without the validity fields still returns the code."""
+        secrets_safe_obj = MagicMock()
+        secrets_safe_obj.get_secret_totp_code.return_value = {
+            "Code": "123456",
+            "ValidToUtc": None,
+        }
+
+        self.assertEqual(
+            main.get_totp_code(secrets_safe_obj, SECRET_ID),
+            {"totp_code": "123456", "valid_from_utc": "", "valid_to_utc": ""},
+        )
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_text_or_file_secret_400(self, mock_show_error):

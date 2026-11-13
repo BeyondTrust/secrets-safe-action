@@ -45,6 +45,10 @@ inputs:
 outputs:
   totp_code:
     description: 'The current TOTP code of the secret, read as steps.<step_id>.outputs.totp_code. It is masked in the logs and is only valid for the current TOTP period, so use it in the next step.'
+  valid_from_utc:
+    description: 'UTC time from which the code is valid (inclusive), as returned by the API, e.g. 2026-11-13T10:00:00.0000000+00:00. Not masked.'
+  valid_to_utc:
+    description: 'UTC time at which the code expires (exclusive), as returned by the API, e.g. 2026-11-13T10:00:30.0000000+00:00. Not masked.'
 runs:
   using: 'docker'
   image: 'Dockerfile'

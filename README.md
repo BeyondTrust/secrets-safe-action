@@ -410,7 +410,10 @@ The step fails if the secret is a text or file secret, or if the secret is not f
 ### Get TOTP Code Outputs
 
 #### `totp_code`
-The current TOTP code of the secret, read as `${{ steps.<step_id>.outputs.totp_code }}`.
+The current TOTP code of the secret, read as `${{ steps.<step_id>.outputs.totp_code }}`. Masked in the logs.
+
+#### `valid_from_utc`, `valid_to_utc`
+The code's validity window as returned by the API: from `valid_from_utc` (inclusive) to `valid_to_utc` (exclusive), for example `2026-11-13T10:00:00.0000000+00:00` and `2026-11-13T10:00:30.0000000+00:00`. They are not masked. Use `valid_to_utc` to check that the code has not expired before using it.
 
 ### Get TOTP Code Example
 

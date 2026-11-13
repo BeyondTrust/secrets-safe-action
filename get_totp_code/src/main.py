@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import uuid
+from typing import Dict
 
 import requests
 import secrets_safe_library
@@ -31,6 +32,9 @@ API_VERSION = env.get("API_VERSION")
 
 SECRET_ID = env.get("INPUT_SECRET_ID", "").strip() or None
 OUTPUT_NAME = "totp_code"
+# Outputs for the validity window of the code, keyed by the API response field.
+# They are timestamps, not secrets, so they are not masked.
+VALIDITY_OUTPUTS = {"ValidFromUtc": "valid_from_utc", "ValidToUtc": "valid_to_utc"}
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
@@ -279,7 +283,9 @@ def validate_secret_id(secret_id: str | None) -> str:
     return secret_id
 
 
-def get_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) -> str:
+def get_totp_code(
+    secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str
+) -> Dict[str, str]:
     """
     Retrieves the current TOTP code of one credential secret.
 
@@ -288,7 +294,9 @@ def get_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) ->
         secret_id (str): The credential secret ID (GUID).
 
     Returns:
-        str: The current one-time code.
+        Dict[str, str]: The output values: totp_code, plus valid_from_utc
+        (inclusive) and valid_to_utc (exclusive), each "" when the response
+        does not include it.
     """
 
     try:
@@ -318,13 +326,19 @@ def get_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) ->
             logger,
         )
 
-    return str(code)
+    outputs = {OUTPUT_NAME: str(code)}
+    for field, output_name in VALIDITY_OUTPUTS.items():
+        value = response.get(field)
+        outputs[output_name] = "" if value is None else str(value)
+
+    return outputs
 
 
 def write_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) -> None:
     """
     Retrieves the current TOTP code of the secret and writes it to the
-    totp_code output. The code is masked before it is written, and is only
+    totp_code output, with its validity window in valid_from_utc and
+    valid_to_utc. The code is masked before anything is written, and is only
     valid for the current TOTP period.
 
     Arguments:
@@ -335,9 +349,10 @@ def write_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) 
         None
     """
 
-    code = get_totp_code(secrets_safe_obj, secret_id)
-    mask_secret("add-mask", code)
-    append_output(OUTPUT_NAME, code)
+    outputs = get_totp_code(secrets_safe_obj, secret_id)
+    mask_secret("add-mask", outputs[OUTPUT_NAME])
+    for name, value in outputs.items():
+        append_output(name, value)
 
 
 def set_authentication(session: requests.Session) -> authentication.Authentication:
