@@ -16,5 +16,5 @@ services:
       - GITHUB_OUTPUT=${GITHUB_OUTPUT}
       - LOG_LEVEL=${LOG_LEVEL}
       - API_VERSION=${API_VERSION}
-      - INPUT_SECRET_IDS=${INPUT_SECRET_IDS}
+      - INPUT_SECRET_ID=${INPUT_SECRET_ID}
     container_name: get_totp_code_action

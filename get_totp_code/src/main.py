@@ -1,19 +1,17 @@
 """
 Secrets Safe Get TOTP Code Action
 
-Retrieves the current one-time (TOTP) code of TOTP-enabled credential secrets
-from BeyondTrust Secrets Safe and exposes each code as a masked GitHub Actions
-output.
+Retrieves the current one-time (TOTP) code of one TOTP-enabled credential
+secret from BeyondTrust Secrets Safe and exposes it as the masked GitHub Actions
+output totp_code.
 
 API: GET Secrets-Safe/Secrets/{secretId}/totp/code
 """
 
-import json
 import logging
 import os
 import re
 import uuid
-from typing import List, Tuple
 
 import requests
 import secrets_safe_library
@@ -31,8 +29,8 @@ API_URL = env.get("API_URL")
 API_VERSION = env.get("API_VERSION")
 # VERIFY_CA is resolved below, once the logger exists to report a bad value.
 
-SECRET_IDS = env.get("INPUT_SECRET_IDS", "").strip() or None
-MAX_CODES_TO_RETRIEVE = 20
+SECRET_ID = env.get("INPUT_SECRET_ID", "").strip() or None
+OUTPUT_NAME = "totp_code"
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
@@ -65,8 +63,6 @@ COMMAND_MARKER: str = "::"
 # Tokens that explicitly enable / disable TLS certificate verification.
 VERIFY_CA_TRUE_TOKENS = frozenset({"true", "1", "yes", "on", "enable", "enabled"})
 VERIFY_CA_FALSE_TOKENS = frozenset({"false", "0", "no", "off", "disable", "disabled"})
-
-OUTPUT_ID_PATTERN = r"[a-zA-Z_][a-zA-Z0-9_-]*"
 
 # Unlike the other actions, 400 is not retried: the TOTP code endpoint returns
 # 400 for a text or file secret, which must reach the library as a response so
@@ -259,84 +255,28 @@ def is_guid(value) -> bool:
     return True
 
 
-def validate_entry(entry) -> Tuple[str, str]:
+def validate_secret_id(secret_id: str | None) -> str:
     """
-    Validates one input entry and returns its secret ID and output name.
-
-    The secret ID is placed in the request path, so anything that is not a GUID
-    is rejected. The output name must be safe to use in GITHUB_OUTPUT.
+    Validates the secret_id input before authenticating, so bad input fails
+    without making any API call. The ID is placed in the request path, so
+    anything that is not a GUID is rejected.
 
     Arguments:
-        entry: One parsed element of the secret_ids input.
+        secret_id (str | None): Raw value of the secret_id input.
 
     Returns:
-        Tuple[str, str]: (secret_id, output_id).
+        str: The secret ID.
     """
 
-    if not isinstance(entry, dict):
-        common.show_error("Invalid JSON, each entry must be a JSON object", logger)
-
-    if "secret_id" not in entry:
-        common.show_error("Invalid JSON, validate secret_id attribute name", logger)
-
-    if "output_id" not in entry:
-        common.show_error("Invalid JSON, validate output_id attribute name", logger)
-
-    secret_id = entry["secret_id"]
-    output_id = entry["output_id"]
+    if not secret_id:
+        common.show_error("Nothing to do, SECRET_ID parameter is empty", logger)
 
     if not is_guid(secret_id):
         common.show_error(
             f"Invalid secret_id {repr(secret_id)}: must be a secret GUID", logger
         )
 
-    if not isinstance(output_id, str) or not re.fullmatch(OUTPUT_ID_PATTERN, output_id):
-        common.show_error(
-            f"Invalid output_id {repr(output_id)}: must be a string starting "
-            "with a letter or underscore and contain only alphanumeric "
-            "characters, underscores, or hyphens",
-            logger,
-        )
-
-    return secret_id, output_id
-
-
-def parse_secret_ids(secret_ids: str | None) -> List[Tuple[str, str]]:
-    """
-    Parses and validates the secret_ids input.
-
-    The input is a JSON object, or a list of objects, each with "secret_id"
-    (GUID) and "output_id" attributes. Every entry is validated here, before
-    authenticating, so bad input fails without making any API call.
-
-    Arguments:
-        secret_ids (str | None): Raw value of the secret_ids input.
-
-    Returns:
-        List[Tuple[str, str]]: (secret_id, output_id) pairs.
-    """
-
-    if not secret_ids:
-        common.show_error("Nothing to do, SECRET_IDS parameter is empty", logger)
-
-    try:
-        data = json.loads(secret_ids)
-    except (json.JSONDecodeError, TypeError) as e:
-        common.show_error(f"Invalid JSON input: {e}", logger)
-
-    entries = data if isinstance(data, list) else [data]
-
-    if not entries:
-        common.show_error("Nothing to do, SECRET_IDS parameter is empty", logger)
-
-    if len(entries) > MAX_CODES_TO_RETRIEVE:
-        common.show_error(
-            "The Secrets Safe Get TOTP Code action can request a maximum of "
-            f"{MAX_CODES_TO_RETRIEVE} TOTP codes each run",
-            logger,
-        )
-
-    return [validate_entry(entry) for entry in entries]
+    return secret_id
 
 
 def get_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) -> str:
@@ -381,26 +321,23 @@ def get_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) ->
     return str(code)
 
 
-def get_totp_codes(
-    secrets_safe_obj: secrets_safe.SecretsSafe, entries: List[Tuple[str, str]]
-) -> None:
+def write_totp_code(secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str) -> None:
     """
-    Retrieves the current TOTP code for each entry and appends it to
-    GITHUB_OUTPUT. Each code is masked before it is written, and is only valid
-    for the current TOTP period.
+    Retrieves the current TOTP code of the secret and writes it to the
+    totp_code output. The code is masked before it is written, and is only
+    valid for the current TOTP period.
 
     Arguments:
         secrets_safe_obj (SecretsSafe): Secrets Safe client.
-        entries (List[Tuple[str, str]]): (secret_id, output_id) pairs.
+        secret_id (str): The credential secret ID (GUID).
 
     Returns:
         None
     """
 
-    for secret_id, output_id in entries:
-        code = get_totp_code(secrets_safe_obj, secret_id)
-        mask_secret("add-mask", code)
-        append_output(output_id, code)
+    code = get_totp_code(secrets_safe_obj, secret_id)
+    mask_secret("add-mask", code)
+    append_output(OUTPUT_NAME, code)
 
 
 def set_authentication(session: requests.Session) -> authentication.Authentication:
@@ -464,12 +401,12 @@ def set_authentication(session: requests.Session) -> authentication.Authenticati
 
 def main() -> None:
     """
-    Validates the input, authenticates, writes each TOTP code to GITHUB_OUTPUT
-    and signs out.
+    Validates the input, authenticates, writes the TOTP code to the totp_code
+    output and signs out.
     """
 
     # Validate the input before authenticating, so bad input fails fast.
-    entries = parse_secret_ids(SECRET_IDS)
+    secret_id = validate_secret_id(SECRET_ID)
 
     try:
         with requests.Session() as session:
@@ -487,7 +424,7 @@ def main() -> None:
             secrets_safe_obj = secrets_safe.SecretsSafe(
                 authentication=authentication_obj, logger=logger
             )
-            get_totp_codes(secrets_safe_obj, entries)
+            write_totp_code(secrets_safe_obj, secret_id)
             authentication_obj.sign_app_out()
 
     except Exception as e:

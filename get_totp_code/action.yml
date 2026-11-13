@@ -1,6 +1,6 @@
 name: 'Secrets Safe Get TOTP Code Action'
 author: 'BeyondTrust Corporation'
-description: 'This custom action retrieves the current TOTP one-time code of TOTP-enabled credential secrets from an instance of Secrets Safe.'
+description: 'This custom action retrieves the current TOTP one-time code of a TOTP-enabled credential secret from an instance of Secrets Safe.'
 inputs:
   api_key:
     description: 'The API Key configured in BeyondInsight for your application. If not set, then client credentials must be provided.'
@@ -34,8 +34,8 @@ inputs:
     description: 'Certificate private key (key.pem). For use when authenticating with an API key using a Client Certificate.'
     required: false
     default: ''
-  secret_ids:
-    description: 'IDs (GUIDs) of TOTP-enabled credential secrets along with the value that the current TOTP code will be mapped to. For example, [{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "totp_code"}]. A single object is also accepted, up to 20 entries per run. Each code is masked and is only valid for the current TOTP period, so use it in the next step.'
+  secret_id:
+    description: 'ID (GUID) of the TOTP-enabled credential secret whose current TOTP code is retrieved. For example, a1b2c3d4-e5f6-7890-abcd-ef1234567890.'
     required: true
     default: ''
   log_level:
@@ -43,8 +43,8 @@ inputs:
     required: false
     default: 'INFO'
 outputs:
-  <output_id>:
-    description: 'The action stores each retrieved TOTP code in an output variable defined by the end user. The <output_id> must be a unique identifier within the outputs object. The <output_id> must start with a letter or _ and contain only alphanumeric characters, -, or _.'
+  totp_code:
+    description: 'The current TOTP code of the secret, read as steps.<step_id>.outputs.totp_code. It is masked in the logs and is only valid for the current TOTP period, so use it in the next step.'
 runs:
   using: 'docker'
   image: 'Dockerfile'

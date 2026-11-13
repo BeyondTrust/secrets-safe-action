@@ -382,9 +382,9 @@ To read the current code of this secret, use the [Get TOTP Code Action](#get-tot
 
 ## Get TOTP Code Action
 
-This action retrieves the current TOTP one-time code of TOTP-enabled credential secrets from BeyondTrust Secrets Safe (`GET /Secrets-Safe/Secrets/{secretId}/totp/code`) and makes each code available as a step output. It is a separate action from `get_secret`, so existing secret retrieval workflows are unaffected.
+This action retrieves the current TOTP one-time code of a TOTP-enabled credential secret from BeyondTrust Secrets Safe (`GET /Secrets-Safe/Secrets/{secretId}/totp/code`) and makes it available as the step output `totp_code`. It is a separate action from `get_secret`, so existing secret retrieval workflows are unaffected. To get the codes of several secrets, use one step per secret.
 
-Each code is masked on the runner before it is written to the output. A code is only valid for the current TOTP period (typically 30 seconds), so use it in the next step rather than later in the job.
+The code is masked on the runner before it is written to the output. A code is only valid for the current TOTP period (typically 30 seconds), so use it in the next step rather than later in the job.
 
 ### Prerequisites
 
@@ -402,24 +402,15 @@ Same as for the [Get Secrets Action](#inputs).
 #### `api_version`
 **Optional:** Defaults to `3.3`, the version that adds TOTP support for credential secrets.
 
-#### `secret_ids`
-**Required:** IDs (GUIDs) of TOTP-enabled credential secrets, along with the output each code is written to. A single object or a list of up to 20 entries is accepted.
-```json
-[
-  {
-    "secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "output_id": "totp_code"
-  }
-]
-```
-The input is validated before authenticating: each `secret_id` must be a GUID, and each `output_id` must start with a letter or `_` and contain only alphanumeric characters, `-`, or `_`.
+#### `secret_id`
+**Required:** ID (GUID) of the TOTP-enabled credential secret, for example `a1b2c3d4-e5f6-7890-abcd-ef1234567890`. It is validated before authenticating, so a value that is not a GUID fails without any API call.
 
-The step fails if a secret is a text or file secret, or if the secret is not found or does not have TOTP enabled.
+The step fails if the secret is a text or file secret, or if the secret is not found or does not have TOTP enabled.
 
 ### Get TOTP Code Outputs
 
-#### `output_id`
-The current TOTP code of each secret, in the output named by its `output_id`.
+#### `totp_code`
+The current TOTP code of the secret, read as `${{ steps.<step_id>.outputs.totp_code }}`.
 
 ### Get TOTP Code Example
 
@@ -434,7 +425,7 @@ The action is available from the release that introduces it. Pin `uses:` to that
     VERIFY_CA: ${{vars.VERIFY_CA}}
     CLIENT_ID: ${{secrets.CLIENT_ID}}
     CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
-    SECRET_IDS: '[{"secret_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "output_id": "totp_code"}]'
+    SECRET_ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
 
 # Use the code straight away: it expires at the end of the current TOTP period.
 - name: Sign in

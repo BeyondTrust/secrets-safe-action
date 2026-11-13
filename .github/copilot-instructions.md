@@ -10,7 +10,7 @@ The full project rules live in `CLAUDE.md` at the repository root. When this fil
 |---|---|---|
 | `get_secret/` | Reads ASCII secrets by path and title (up to 20) into masked outputs | `main()` (inline auth) → `get_secrets()` → sign out |
 | `create_secret/` | Creates a credential, text or file secret in a folder found by name | `main()` → `set_authentication()` → `get_folder()` → `create_secret()` → sign out |
-| `get_totp_code/` | Reads the current TOTP code of credential secrets by ID (API 3.3) into masked outputs | `main()` → `parse_secret_ids()` → `set_authentication()` → `get_totp_codes()` → sign out |
+| `get_totp_code/` | Reads the current TOTP code of one credential secret by ID (API 3.3) into the masked output `totp_code` | `main()` → `validate_secret_id()` → `set_authentication()` → `write_totp_code()` → sign out |
 | `update_secret/` | Updates a credential, text or file secret by ID with a full-replacement PUT | `main()` → `validate_inputs()` → `set_authentication()` → `update_secret()` → sign out |
 
 - Each action has its own `action.yml`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `src/main.py` and `tests/unit/test_main.py`. There is no shared code between actions: a fix to a common helper (masking, `VERIFY_CA`, the retry session, authentication) is copied to every action that has it.

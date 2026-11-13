@@ -1,12 +1,11 @@
 """Unit tests for the Get TOTP Code action"""
 
 import http.server
-import json
 import os
 import tempfile
 import threading
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -14,12 +13,6 @@ from src import main
 from urllib3.util.retry import Retry
 
 SECRET_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-OTHER_SECRET_ID = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
-
-
-def entry_json(secret_id=SECRET_ID, output_id="code"):
-    """Return the secret_ids input for a single entry."""
-    return json.dumps({"secret_id": secret_id, "output_id": output_id})
 
 
 @patch("src.main.API_URL", "https://example.com/BeyondTrust/api/public/v3")
@@ -28,7 +21,7 @@ def entry_json(secret_id=SECRET_ID, output_id="code"):
 class TestMain(unittest.TestCase):
     """Tests for main."""
 
-    @patch("src.main.SECRET_IDS", entry_json())
+    @patch("src.main.SECRET_ID", SECRET_ID)
     @patch("src.main.append_output")
     @patch("src.main.secrets_safe.SecretsSafe.get_secret_totp_code")
     @patch("src.main.authentication.Authentication.sign_app_out")
@@ -53,16 +46,16 @@ class TestMain(unittest.TestCase):
 
         get_totp_code_mock.assert_called_once_with(SECRET_ID)
         mock_print.assert_any_call("::add-mask ::123456")
-        append_output_mock.assert_called_once_with("code", "123456")
+        append_output_mock.assert_called_once_with("totp_code", "123456")
         sign_app_out_mock.assert_called_once()
 
-    @patch("src.main.SECRET_IDS", entry_json())
+    @patch("src.main.SECRET_ID", SECRET_ID)
     @patch("src.main.API_KEY", "api-key")
     @patch("src.main.API_VERSION", "3.3")
-    @patch("src.main.get_totp_codes")
+    @patch("src.main.write_totp_code")
     @patch("src.main.authentication.Authentication")
     def test_main_api_key_and_version(
-        self, authentication_class_mock, get_totp_codes_mock
+        self, authentication_class_mock, write_totp_code_mock
     ):
         """API key authentication is used and the API version is passed on."""
         authentication_class_mock.return_value.get_api_access.return_value = MagicMock(
@@ -75,9 +68,10 @@ class TestMain(unittest.TestCase):
         self.assertEqual(kwargs["api_key"], "api-key")
         self.assertEqual(kwargs["api_version"], "3.3")
         self.assertNotIn("client_id", kwargs)
-        get_totp_codes_mock.assert_called_once()
+        write_totp_code_mock.assert_called_once()
+        self.assertEqual(write_totp_code_mock.call_args.args[1], SECRET_ID)
 
-    @patch("src.main.SECRET_IDS", None)
+    @patch("src.main.SECRET_ID", None)
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     @patch("src.main.authentication.Authentication")
     def test_main_nothing_to_do_fails_before_authenticating(
@@ -90,7 +84,7 @@ class TestMain(unittest.TestCase):
         self.assertIn("Nothing to do", mock_show_error.call_args[0][0])
         authentication_class_mock.assert_not_called()
 
-    @patch("src.main.SECRET_IDS", entry_json(secret_id="../../folders"))
+    @patch("src.main.SECRET_ID", "../../folders")
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     @patch("src.main.authentication.Authentication")
     def test_main_invalid_input_fails_before_authenticating(
@@ -103,7 +97,7 @@ class TestMain(unittest.TestCase):
         self.assertIn("Invalid secret_id", mock_show_error.call_args[0][0])
         authentication_class_mock.assert_not_called()
 
-    @patch("src.main.SECRET_IDS", entry_json())
+    @patch("src.main.SECRET_ID", SECRET_ID)
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     @patch("src.main.authentication.Authentication.get_api_access")
     def test_main_auth_failure(self, get_api_access_mock, mock_show_error):
@@ -117,7 +111,7 @@ class TestMain(unittest.TestCase):
 
         self.assertIn("Please check credentials", mock_show_error.call_args[0][0])
 
-    @patch("src.main.SECRET_IDS", entry_json())
+    @patch("src.main.SECRET_ID", SECRET_ID)
     @patch("src.main.common.show_error")
     @patch("src.main.requests.Session", side_effect=Exception("Unexpected error"))
     def test_main_exception_handling(self, _session_mock, mock_show_error):
@@ -127,94 +121,39 @@ class TestMain(unittest.TestCase):
         mock_show_error.assert_called_once()
 
 
-class TestParseSecretIds(unittest.TestCase):
-    """Tests for parse_secret_ids, which validates the input."""
+class TestValidateSecretId(unittest.TestCase):
+    """Tests for validate_secret_id, which validates the input."""
 
-    def test_single_object(self):
-        """A single object is accepted."""
-        self.assertEqual(main.parse_secret_ids(entry_json()), [(SECRET_ID, "code")])
-
-    def test_list(self):
-        """A list of objects is accepted, in order."""
-        secret_ids = json.dumps(
-            [
-                {"secret_id": SECRET_ID, "output_id": "code1"},
-                {"secret_id": OTHER_SECRET_ID, "output_id": "code2"},
-            ]
-        )
-
-        self.assertEqual(
-            main.parse_secret_ids(secret_ids),
-            [(SECRET_ID, "code1"), (OTHER_SECRET_ID, "code2")],
-        )
-
-    def test_max_entries_accepted(self):
-        """Exactly the maximum number of entries is accepted."""
-        secret_ids = json.dumps(
-            [
-                {"secret_id": SECRET_ID, "output_id": f"c{i}"}
-                for i in range(main.MAX_CODES_TO_RETRIEVE)
-            ]
-        )
-
-        self.assertEqual(
-            len(main.parse_secret_ids(secret_ids)), main.MAX_CODES_TO_RETRIEVE
-        )
+    def test_guid_is_accepted(self):
+        """A GUID is returned as is."""
+        self.assertEqual(main.validate_secret_id(SECRET_ID), SECRET_ID)
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
-    def test_invalid_input_is_rejected(self, mock_show_error):
-        """Malformed input fails with a message naming the problem."""
-        too_many = json.dumps(
-            [
-                {"secret_id": SECRET_ID, "output_id": f"c{i}"}
-                for i in range(main.MAX_CODES_TO_RETRIEVE + 1)
-            ]
-        )
-        cases = (
-            (None, "Nothing to do"),
-            ("[]", "Nothing to do"),
-            ("not json", "Invalid JSON input"),
-            (json.dumps(["x"]), "must be a JSON object"),
-            (json.dumps({"output_id": "code"}), "validate secret_id"),
-            (json.dumps({"secret_id": SECRET_ID}), "validate output_id"),
-            (too_many, "maximum of 20 TOTP codes"),
-        )
-        for secret_ids, text in cases:
-            with self.subTest(text=text, secret_ids=secret_ids):
+    def test_empty_input_is_rejected(self, mock_show_error):
+        """An empty input fails with "Nothing to do"."""
+        for secret_id in (None, ""):
+            with self.subTest(secret_id=secret_id):
                 with self.assertRaises(SystemExit):
-                    main.parse_secret_ids(secret_ids)
-                self.assertIn(text, mock_show_error.call_args[0][0])
+                    main.validate_secret_id(secret_id)
+                self.assertIn("Nothing to do", mock_show_error.call_args[0][0])
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_secret_id_must_be_guid(self, mock_show_error):
         """A secret_id that is not a GUID never reaches the request path."""
-        for secret_id in ("../../folders", "not-a-guid", 123, None, ""):
+        for secret_id in (
+            "../../folders",
+            "not-a-guid",
+            f"{SECRET_ID}/../folders",
+            '[{"secret_id": "x"}]',
+        ):
             with self.subTest(secret_id=secret_id):
                 with self.assertRaises(SystemExit):
-                    main.parse_secret_ids(entry_json(secret_id=secret_id))
+                    main.validate_secret_id(secret_id)
                 self.assertIn("Invalid secret_id", mock_show_error.call_args[0][0])
 
-    @patch("src.main.common.show_error", side_effect=SystemExit(1))
-    def test_output_id_must_be_safe(self, mock_show_error):
-        """output_id cannot inject extra GITHUB_OUTPUT lines."""
-        for output_id in ("bad\nINJECTED=1", "code\n", "1code", "a b", 5, None):
-            with self.subTest(output_id=output_id):
-                with self.assertRaises(SystemExit):
-                    main.parse_secret_ids(entry_json(output_id=output_id))
-                self.assertIn("Invalid output_id", mock_show_error.call_args[0][0])
 
-    def test_valid_output_ids(self):
-        """Letters, digits, underscores and hyphens are allowed."""
-        for output_id in ("code", "_code", "totp-code_1"):
-            with self.subTest(output_id=output_id):
-                self.assertEqual(
-                    main.parse_secret_ids(entry_json(output_id=output_id)),
-                    [(SECRET_ID, output_id)],
-                )
-
-
-class TestGetTotpCodes(unittest.TestCase):
-    """Tests for get_totp_code and get_totp_codes."""
+class TestGetTotpCode(unittest.TestCase):
+    """Tests for get_totp_code and write_totp_code."""
 
     def _fails(self, mock_show_error, response=None, error=None):
         """Call get_totp_code and return the error message it failed with."""
@@ -228,33 +167,18 @@ class TestGetTotpCodes(unittest.TestCase):
 
     @patch("src.main.append_output")
     @patch("src.main.mask_secret")
-    def test_each_code_is_masked_before_it_is_written(self, mock_mask, mock_append):
-        """Every code is masked before it is written to GITHUB_OUTPUT."""
+    def test_code_is_masked_before_it_is_written(self, mock_mask, mock_append):
+        """The code is masked before it is written to the totp_code output."""
         events = []
         mock_mask.side_effect = lambda _, code: events.append(("mask", code))
         mock_append.side_effect = lambda name, code: events.append((name, code))
         secrets_safe_obj = MagicMock()
-        secrets_safe_obj.get_secret_totp_code.side_effect = [
-            {"Code": "123456"},
-            {"Code": 654321},
-        ]
+        secrets_safe_obj.get_secret_totp_code.return_value = {"Code": 654321}
 
-        main.get_totp_codes(
-            secrets_safe_obj, [(SECRET_ID, "code1"), (OTHER_SECRET_ID, "code2")]
-        )
+        main.write_totp_code(secrets_safe_obj, SECRET_ID)
 
-        self.assertEqual(
-            events,
-            [
-                ("mask", "123456"),
-                ("code1", "123456"),
-                ("mask", "654321"),
-                ("code2", "654321"),
-            ],
-        )
-        secrets_safe_obj.get_secret_totp_code.assert_has_calls(
-            [call(SECRET_ID), call(OTHER_SECRET_ID)]
-        )
+        self.assertEqual(events, [("mask", "654321"), ("totp_code", "654321")])
+        secrets_safe_obj.get_secret_totp_code.assert_called_once_with(SECRET_ID)
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_text_or_file_secret_400(self, mock_show_error):

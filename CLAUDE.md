@@ -77,9 +77,9 @@ Both validate API access (expects HTTP 200), configure certificates if provided,
 Auth configuration is handled inline inside `main()` (no separate function). `get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value via `::add-mask ::value` (space before second `::` is intentional — GitHub Actions accepts this form), and writes to `$GITHUB_OUTPUT` using UUID delimiters for multiline safety.
 
 ### get_totp_code flow
-`main()` → `parse_secret_ids()` (validates every entry before auth) → `set_authentication()` → `get_totp_codes()` → sign out
+`main()` → `validate_secret_id()` (GUID check before auth) → `set_authentication()` → `write_totp_code()` → sign out
 
-Input `secret_ids` is `[{"secret_id": "<guid>", "output_id": "<name>"}]` (max 20). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. Its retry list deliberately **omits 400** so the 400 reaches the library instead of becoming a `RetryError`.
+Input `secret_id` is one secret GUID; the masked code is written to the fixed output `totp_code` (one step per secret). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. Its retry list deliberately **omits 400** so the 400 reaches the library instead of becoming a `RetryError`.
 
 ### update_secret flow
 `main()` → `validate_inputs()` (GUID, one content type, TOTP, integers, JSON — all before auth) → `set_authentication()` → `update_secret()` (`get_secret_to_update()` → `build_update_kwargs()` → PUT) → sign out
