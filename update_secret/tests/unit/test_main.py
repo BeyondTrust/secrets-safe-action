@@ -123,6 +123,22 @@ class TestMain(InputsTestCase):
         mock_update.assert_called_once_with(mock_auth, settings())
         mock_auth.sign_app_out.assert_called_once()
 
+    @patch("src.main.requests.Session")
+    @patch("src.main.update_secret", side_effect=SystemExit(1))
+    @patch("src.main.set_authentication")
+    def test_main_signs_out_when_update_fails(
+        self, mock_set_auth, _mock_update, _mock_session_class
+    ):
+        """A failed update still signs out of the API session."""
+        self.set_inputs(**CREDENTIAL_INPUTS)
+        mock_auth = MagicMock()
+        mock_set_auth.return_value = mock_auth
+
+        with patch("builtins.print"), self.assertRaises(SystemExit):
+            main.main()
+
+        mock_auth.sign_app_out.assert_called_once()
+
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     @patch("src.main.set_authentication")
     def test_main_rejects_invalid_input_before_authenticating(
@@ -234,6 +250,12 @@ class TestValidateInputs(InputsTestCase):
             ({**CREDENTIAL_INPUTS, "PASSWORD_RULE_ID": "1.5"}, "password_rule_id"),
             ({**CREDENTIAL_INPUTS, "OWNERS": "{bad"}, "Invalid JSON format for owners"),
             ({**CREDENTIAL_INPUTS, "URLS": "{bad"}, "Invalid JSON format for urls"),
+            ({**CREDENTIAL_INPUTS, "OWNERS": '{"user_id": 1}'}, "Invalid owners"),
+            ({**CREDENTIAL_INPUTS, "OWNERS": "[1]"}, "Invalid owners"),
+            ({**CREDENTIAL_INPUTS, "OWNERS": "true"}, "Invalid owners"),
+            ({**CREDENTIAL_INPUTS, "OWNERS": "[]"}, "non-empty JSON array"),
+            ({**CREDENTIAL_INPUTS, "URLS": "true"}, "Invalid urls"),
+            ({**CREDENTIAL_INPUTS, "URLS": '["https://x"]'}, "Invalid urls"),
             ({**CREDENTIAL_INPUTS, "TEXT": "t"}, "exactly one kind"),
             (BASE_INPUTS, "exactly one kind"),
             (

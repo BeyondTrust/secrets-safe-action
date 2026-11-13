@@ -456,20 +456,52 @@ def parse_json_parameters():
     """
     Parse JSON parameters for owners and URLs with error handling.
 
+    Each one, when given, must be an array of objects; owners can't be empty.
+    Checked before authentication, so malformed values fail fast.
+
     Returns:
         tuple: A tuple containing (owners_list, urls_list)
     """
-    try:
-        owners_list = json.loads(OWNERS) if OWNERS else None
-    except json.JSONDecodeError as e:
-        common.show_error(f"Invalid JSON format for owners parameter: {e}", logger)
-
-    try:
-        urls_list = json.loads(URLS) if URLS else None
-    except json.JSONDecodeError as e:
-        common.show_error(f"Invalid JSON format for urls parameter: {e}", logger)
+    owners_list = parse_json_list(OWNERS, "owners", allow_empty=False)
+    urls_list = parse_json_list(URLS, "urls", allow_empty=True)
 
     return owners_list, urls_list
+
+
+def parse_json_list(value: str, name: str, allow_empty: bool) -> Optional[list]:
+    """
+    Parse an input holding a JSON array of objects.
+
+    Args:
+        value (str): The raw input. Empty means not given.
+        name (str): The input name, for error messages.
+        allow_empty (bool): Whether an empty array is accepted.
+
+    Returns:
+        Optional[list]: The parsed array, or None when the input is empty.
+    """
+
+    if not value:
+        return None
+
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as e:
+        common.show_error(f"Invalid JSON format for {name} parameter: {e}", logger)
+
+    if (
+        not isinstance(parsed, list)
+        or not all(isinstance(item, dict) for item in parsed)
+        or (not parsed and not allow_empty)
+    ):
+        qualifier = "a non-empty" if not allow_empty else "an"
+        common.show_error(
+            f"Invalid {name} parameter: expected {qualifier} JSON array of "
+            f"objects, got {value}",
+            logger,
+        )
+
+    return parsed
 
 
 def is_no_content_success(error: Exception) -> bool:
@@ -767,8 +799,12 @@ def main() -> None:
             session.mount("http://", adapter)
 
             authentication_obj = set_authentication(session)
-            update_secret(authentication_obj, settings)
-            authentication_obj.sign_app_out()
+            # Sign out on failures too (show_error exits with SystemExit), so
+            # the API session isn't left open until it expires.
+            try:
+                update_secret(authentication_obj, settings)
+            finally:
+                authentication_obj.sign_app_out()
 
     except Exception as e:
         common.show_error(f"An unexpected error occurred: {e}", logger)

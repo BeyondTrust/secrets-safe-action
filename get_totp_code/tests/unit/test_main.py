@@ -105,6 +105,21 @@ class TestMain(unittest.TestCase):
         authentication_class_mock.assert_not_called()
 
     @patch("src.main.SECRET_ID", SECRET_ID)
+    @patch("src.main.write_totp_code", side_effect=SystemExit(1))
+    @patch("src.main.authentication.Authentication.sign_app_out")
+    @patch("src.main.authentication.Authentication.get_api_access")
+    def test_main_signs_out_when_retrieval_fails(
+        self, get_api_access_mock, sign_app_out_mock, _write_totp_code_mock
+    ):
+        """A failed TOTP retrieval still signs out of the API session."""
+        get_api_access_mock.return_value = MagicMock(status_code=200)
+
+        with self.assertRaises(SystemExit):
+            main.main()
+
+        sign_app_out_mock.assert_called_once()
+
+    @patch("src.main.SECRET_ID", SECRET_ID)
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     @patch("src.main.authentication.Authentication.get_api_access")
     def test_main_auth_failure(self, get_api_access_mock, mock_show_error):

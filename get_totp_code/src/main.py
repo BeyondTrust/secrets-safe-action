@@ -436,11 +436,15 @@ def main() -> None:
             session.mount("http://", adapter)
 
             authentication_obj = set_authentication(session)
-            secrets_safe_obj = secrets_safe.SecretsSafe(
-                authentication=authentication_obj, logger=logger
-            )
-            write_totp_code(secrets_safe_obj, secret_id)
-            authentication_obj.sign_app_out()
+            # Sign out on failures too (show_error exits with SystemExit), so
+            # the API session isn't left open until it expires.
+            try:
+                secrets_safe_obj = secrets_safe.SecretsSafe(
+                    authentication=authentication_obj, logger=logger
+                )
+                write_totp_code(secrets_safe_obj, secret_id)
+            finally:
+                authentication_obj.sign_app_out()
 
     except Exception as e:
         common.show_error(e, logger)
