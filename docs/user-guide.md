@@ -233,7 +233,7 @@ The action supports two authentication methods:
     OWNER_TYPE: "User"
     NOTES: ""
     OWNERS: '[{"owner_id": 1}]'
-Example 2: Create Text Secret
+# Example 2: Create Text Secret
 
 
 - name: Create Text secret
