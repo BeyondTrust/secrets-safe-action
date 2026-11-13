@@ -19,7 +19,7 @@ RUN mkdir -p /usr/src/app && chown -R appuser:appgroup /usr/src/app
 WORKDIR /usr/src/app
 
 # Installing requirements from requirements.txt file
-COPY --chown=appuser:appgroup requirements.txt .
+COPY --chown=appuser:appgroup requirements.txt beyondtrust_bips_library-3.5.1-py3-none-any.whl ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source files and set proper ownership

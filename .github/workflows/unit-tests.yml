@@ -27,10 +27,12 @@ jobs:
 
       - name: Setting up environment
         run: |
-          pip install -r create_secret/requirements-dev.txt
-          pip install -r get_secret/requirements-dev.txt
-          pip install -r get_totp_code/requirements-dev.txt
-          pip install -r update_secret/requirements-dev.txt
+          # Each requirements.txt points at a wheel in its action folder, and pip
+          # resolves that path from the current directory.
+          (cd create_secret && pip install -r requirements-dev.txt)
+          (cd get_secret && pip install -r requirements-dev.txt)
+          (cd get_totp_code && pip install -r requirements-dev.txt)
+          (cd update_secret && pip install -r requirements-dev.txt)
 
       - name: Running Unit tests
         run: |

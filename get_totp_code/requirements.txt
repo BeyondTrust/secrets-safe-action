@@ -1,1 +1,1 @@
-beyondtrust-bips-library>=3.6.0,<4.0.0
+./beyondtrust_bips_library-3.5.1-py3-none-any.whl
