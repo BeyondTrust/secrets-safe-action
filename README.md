@@ -105,13 +105,13 @@ Certificate private key (key.pem). For use when authenticating with an API key
 
 ### `verify_ca`
 
-Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to true if not specified. Accepts `true`, `false`, or the path to a CA bundle inside the action container.
+Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to true if not specified. Accepts `true` or `false` only.
 ```
 VERIFY_CA: true
 ```
 Warning: false is insecure, instructs the Secrets Safe custom action not to verify the certificate authority.
 
-`true` verifies against `certifi`'s bundled roots, **not** the operating system trust store, so a private or internal CA has to be supplied as a bundle path. See [TLS certificate verification (`VERIFY_CA`)](#tls-certificate-verification-verify_ca).
+`true` verifies against `certifi`'s bundled roots, **not** the operating system trust store. See [TLS certificate verification (`VERIFY_CA`)](#tls-certificate-verification-verify_ca).
 
 ### `log_level`
 Level of logging verbosity. Default INFO.
@@ -184,7 +184,7 @@ https://example.com:443/BeyondTrust/api/public/v3
 **Optional:** Supported versions are 3.0, 3.1, 3.2 and 3.3. The recommended version is 3.1. If no version is specified, the default API version 3.0 will be used. Use 3.3 to create TOTP-enabled credential secrets.
 
 #### `verify_ca`
-**Optional:** Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to `true`. Accepts `true`, `false`, or the path to a CA bundle inside the action container — `true` verifies against `certifi`'s bundled roots, **not** the operating system trust store. See [TLS certificate verification (`VERIFY_CA`)](#tls-certificate-verification-verify_ca).
+**Optional:** Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to `true`. Accepts `true` or `false` only — `true` verifies against `certifi`'s bundled roots, **not** the operating system trust store. See [TLS certificate verification (`VERIFY_CA`)](#tls-certificate-verification-verify_ca).
 
 #### `certificate`
 **Optional:** Content of the certificate (cert.pem) for use when authenticating with an API key using a Client Certificate.
@@ -541,55 +541,16 @@ Only the username (required for a credential secret) and the new password are gi
 
 ## TLS certificate verification (`VERIFY_CA`)
 
-All four actions read the same `VERIFY_CA` environment variable, which accepts three kinds of value:
+All four actions read the same `VERIFY_CA` environment variable, which only accepts a boolean value:
 
 | Value | Behavior |
 | --- | --- |
 | `true` (default), `1`, `yes`, `on`, `enable`, `enabled` | Verify against the CA store the `requests` library defaults to — the roots bundled with `certifi`. |
 | `false`, `0`, `no`, `off`, `disable`, `disabled` | **Insecure.** Skip certificate verification entirely. |
-| A path to an existing file or directory, e.g. `/github/workspace/ca/ca-bundle.crt` | Verify against that CA bundle. |
 
-Values are case-insensitive and surrounding whitespace is ignored. Anything else — including a mistyped or missing bundle path — fails the step at startup with an `EnvironmentError` rather than silently falling back to `true` and failing to trust the CA you asked for.
+Values are case-insensitive and surrounding whitespace is ignored. Anything else, including a path to a CA bundle, fails the step at startup with an `EnvironmentError` instead of being ignored.
 
-**`true` is not the operating system trust store.** `requests` verifies against `certifi`'s bundled Mozilla root certificates, not OpenSSL's default paths, so `true` and `/etc/pki/tls/certs/ca-bundle.crt` are *different* trust stores and can behave differently. Anything an administrator added to a host's OS store with `update-ca-trust` / `update-ca-certificates` — an internal PKI or a self-signed Password Safe certificate — is invisible to `certifi`. If Password Safe presents a certificate that does not chain to a public root, `VERIFY_CA: "true"` fails with `CERTIFICATE_VERIFY_FAILED` and you must point `VERIFY_CA` at a bundle that contains your CA. Do not disable verification to work around this.
-
-### Supplying a CA bundle
-
-These are Docker container actions, so the bundle must exist **inside the action container**, which does not inherit the runner's trust store. The runner mounts the repository workspace at `/github/workspace` in the container, so a bundle that is checked in — or written by an earlier step — is reachable under that path:
-
-```yaml
-- uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-
-- name: Get secret
-  uses: BeyondTrust/secrets-safe-action/get_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
-  env:
-    API_URL: ${{vars.API_URL}}
-    CLIENT_ID: ${{secrets.CLIENT_ID}}
-    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
-    # Path inside the container, not on the runner.
-    VERIFY_CA: "/github/workspace/ca/ca-bundle.crt"
-  with:
-    SECRET_PATH: '{"path": "folder1/folder2/title", "output_id": "title"}'
-```
-
-To keep the bundle out of the repository, write it from a secret in a preceding step:
-
-```yaml
-- name: Write CA bundle
-  run: |
-    mkdir -p "$GITHUB_WORKSPACE/ca"
-    printf '%s\n' "${{ secrets.CA_BUNDLE }}" > "$GITHUB_WORKSPACE/ca/ca-bundle.crt"
-```
-
-Use the literal `/github/workspace/...` path for `VERIFY_CA`: `${{ github.workspace }}` expands to the path on the runner (for example `/home/runner/work/repo/repo`), which does not exist inside the container.
-
-As an alternative that needs no change to `VERIFY_CA`, `requests` also honors the standard `REQUESTS_CA_BUNDLE` (or `CURL_CA_BUNDLE`) environment variable whenever verification is enabled; set it on the step's `env` with the same in-container path. Note that `SSL_CERT_FILE` has no effect on `requests`.
-
-The action logs which trust store is in effect at `INFO` level, which is the quickest way to confirm the bundle was picked up:
-
-```
-Verifying certificates against CA bundle: /github/workspace/ca/ca-bundle.crt
-```
+**`true` is not the operating system trust store.** `requests` verifies against `certifi`'s bundled Mozilla root certificates, not OpenSSL's default paths. Anything an administrator added to a host's OS store with `update-ca-trust` / `update-ca-certificates`, such as an internal PKI or a self-signed Password Safe certificate, is invisible to `certifi`, and these are Docker container actions that do not inherit the runner's trust store either. If Password Safe presents a certificate that does not chain to a public root, `VERIFY_CA: "true"` fails with `CERTIFICATE_VERIFY_FAILED`.
 
 ## Extracting Client Secret
 Download the pfx certificate from Secrets Safe and extract the certificate and the key to be pasted into a GitHub secret.

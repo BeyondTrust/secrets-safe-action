@@ -58,7 +58,7 @@ Each action is self-contained with identical layout:
 ├── action.yml          # GitHub Actions metadata (inputs/outputs/runs)
 ├── Dockerfile          # python:3.12-alpine, non-root appuser (UID 1001)
 ├── docker-compose.yml  # Local testing with .env file
-├── requirements.txt    # beyondtrust-bips-library>=3.1.0,<4.0.0
+├── requirements.txt    # beyondtrust-bips-library>=3.6.0,<4.0.0
 ├── requirements-dev.txt
 └── src/main.py         # All logic lives here (~260-280 lines)
     tests/unit/test_main.py
@@ -72,9 +72,9 @@ Both actions support two mutually exclusive auth methods:
 Both validate API access (expects HTTP 200), configure certificates if provided, and set API version (default 3.0, recommended 3.1).
 
 ### get_secret flow
-`main()` → (inline auth) → `get_secrets()` → sign out
+`main()` → `api_client.authenticate()` (inline in `main()`) → `get_secrets()` → sign out
 
-Auth configuration is handled inline inside `main()` (no separate function). `get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value via `::add-mask ::value` (space before second `::` is intentional — GitHub Actions accepts this form), and writes to `$GITHUB_OUTPUT` using UUID delimiters for multiline safety.
+`get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value with `outputs.mask_secret()` and writes it with `outputs.append_output()`.
 
 ### get_totp_code flow
 `main()` → `validate_secret_id()` (GUID check before auth) → `set_authentication()` → `write_totp_code()` → sign out
@@ -91,11 +91,13 @@ Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/
 
 `get_folder()` lists all folders and matches by exact name. `create_secret()` handles three secret types (CREDENTIAL, TEXT, FILE) and optionally creates a file attachment before creating the secret record.
 
-### HTTP session config (get_secret, create_secret, update_secret; get_totp_code omits 400)
-```python
-Retry(total=3, backoff_factor=0.2, status_forcelist=[400, 408, 500, 502, 503, 504])
-# Timeouts: connect=30s, read=30s
-```
+### Shared helpers (beyondtrust-bips-library >= 3.6.0)
+The helpers every action needs live in the library, in `secrets_safe_library.integrations.github_actions.common_utils`; fix them there, not in the actions:
+- `tls.parse_verify_ca()`: `VERIFY_CA` is boolean only (true/false tokens; a CA bundle path fails the step). `api_client.authenticate()` passes it to `Authentication`, which sets `session.verify`
+- `outputs.mask_secret()` (`::add-mask ::value` per line, CR/LF-safe; the space before the second `::` is intentional), `outputs.append_output()` (`$GITHUB_OUTPUT` heredoc with a UUID delimiter)
+- `api_client.create_session(retry_status_codes)`: `Retry(total=3, backoff_factor=0.2, status_forcelist=[400, 408, 500, 502, 503, 504])` by default; `get_totp_code` passes the list without 400
+- `api_client.authenticate()`: API key or OAuth, 30 s timeouts, fails the step unless sign-in returns 200
+- `common.show_error()`, `common.create_file()`
 
 ### Environment variable conventions
 - GitHub Actions inputs arrive as `INPUT_<NAME>` (uppercased)

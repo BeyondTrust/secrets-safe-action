@@ -1,7 +1,5 @@
 """Unit tests for the Update Secret action"""
 
-import os
-import tempfile
 import unittest
 from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, patch
@@ -13,7 +11,6 @@ from src.main import (
     get_secret_type,
     get_totp_settings,
     is_no_content_success,
-    mask_secret,
     mask_sensitive_inputs,
     parse_optional_bool,
     parse_optional_int,
@@ -105,7 +102,7 @@ def settings(secret_type=main.CREDENTIAL, **overrides):
 class TestMain(InputsTestCase):
     """Tests for main."""
 
-    @patch("src.main.requests.Session")
+    @patch("src.main.api_client.create_session")
     @patch("src.main.update_secret")
     @patch("src.main.set_authentication")
     def test_main_success(self, mock_set_auth, mock_update, mock_session_class):
@@ -123,7 +120,7 @@ class TestMain(InputsTestCase):
         mock_update.assert_called_once_with(mock_auth, settings())
         mock_auth.sign_app_out.assert_called_once()
 
-    @patch("src.main.requests.Session")
+    @patch("src.main.api_client.create_session")
     @patch("src.main.update_secret", side_effect=SystemExit(1))
     @patch("src.main.set_authentication")
     def test_main_signs_out_when_update_fails(
@@ -153,7 +150,7 @@ class TestMain(InputsTestCase):
         mock_set_auth.assert_not_called()
         self.assertIn("Invalid secret_id", mock_show_error.call_args[0][0])
 
-    @patch("src.main.requests.Session")
+    @patch("src.main.api_client.create_session")
     @patch("src.main.update_secret")
     @patch("src.main.set_authentication")
     def test_main_masks_inputs_before_authenticating(
@@ -170,7 +167,7 @@ class TestMain(InputsTestCase):
         self.assertEqual(events, ["::add-mask ::p4ss", f"::add-mask ::{SEED}", "auth"])
 
     @patch("src.main.common.show_error")
-    @patch("src.main.requests.Session", side_effect=Exception("boom"))
+    @patch("src.main.api_client.create_session", side_effect=Exception("boom"))
     def test_main_unexpected_error(self, _mock_session, mock_show_error):
         """Unexpected errors fail the step through show_error."""
         self.set_inputs(**CREDENTIAL_INPUTS)
@@ -718,19 +715,6 @@ class TestMasking(InputsTestCase):
     """Tests for masking the sensitive inputs."""
 
     @patch("builtins.print")
-    def test_mask_secret_splits_lines_and_escapes(self, mock_print):
-        mask_secret("add-mask", "a\r::stop-commands::z\n50%")
-
-        self.assertEqual(
-            [c.args[0] for c in mock_print.call_args_list],
-            [
-                "::add-mask ::a",
-                "::add-mask ::::stop-commands::z",
-                "::add-mask ::50%25",
-            ],
-        )
-
-    @patch("builtins.print")
     def test_password_text_and_otpauth_seed_are_masked(self, mock_print):
         uri = f"otpauth://totp/Example:alice?secret={SEED}&issuer=Example"
         self.set_inputs(PASSWORD="p4ss", TEXT="t3xt", TOTP_SECRET_KEY=uri)
@@ -785,39 +769,6 @@ class TestAuthentication(InputsTestCase):
 
         self.assertIn("client_id", mock_auth_class.call_args.kwargs)
         self.assertIn("Please check credentials", mock_show_error.call_args[0][0])
-
-
-class TestVerifyCA(unittest.TestCase):
-    """Tests for parse_verify_ca and configure_certificate_verification."""
-
-    def test_parse_verify_ca(self):
-        for value, expected in ((None, True), ("", True), ("on", True), ("0", False)):
-            with self.subTest(value=value):
-                self.assertIs(main.parse_verify_ca(value), expected)
-
-        with tempfile.NamedTemporaryFile(suffix=".crt") as bundle:
-            self.assertEqual(main.parse_verify_ca(f" {bundle.name} "), bundle.name)
-
-        with self.assertRaises(EnvironmentError):
-            main.parse_verify_ca("/no/such/ca-bundle.crt")
-
-    def test_configure_certificate_verification(self):
-        session = requests.Session()
-        with patch("src.main.utils.print_log") as print_log:
-            main.configure_certificate_verification(session, False)
-            print_log.assert_not_called()
-
-            with tempfile.NamedTemporaryFile(suffix=".crt") as bundle:
-                main.configure_certificate_verification(session, bundle.name)
-                self.assertIn(bundle.name, print_log.call_args[0][1])
-
-            with patch.dict(os.environ, {"CURL_CA_BUNDLE": "/c.crt"}, clear=True):
-                main.configure_certificate_verification(session, True)
-            self.assertIn("CURL_CA_BUNDLE", print_log.call_args[0][1])
-
-            with patch.dict(os.environ, {}, clear=True):
-                main.configure_certificate_verification(session, True)
-            self.assertIn("certifi", print_log.call_args[0][1])
 
 
 if __name__ == "__main__":
