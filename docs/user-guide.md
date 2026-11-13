@@ -93,7 +93,7 @@ The Secrets Safe custom action retrieves ASCII secrets from BeyondTrust Secrets 
        "path": "folder1/folder2/title2",
        "output_id": "title2"
    }
-[
+]
 
 ```
 
