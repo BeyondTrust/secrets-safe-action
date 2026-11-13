@@ -2,6 +2,8 @@
 source =
     create_secret
     get_secret
+    get_totp_code
+    update_secret
 omit = **/tests/*, *__init__.py, /usr/*
 
 [report]

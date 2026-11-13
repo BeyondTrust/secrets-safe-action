@@ -27,14 +27,20 @@ jobs:
 
       - name: Setting up environment
         run: |
-          pip install -r create_secret/requirements-dev.txt
-          pip install -r get_secret/requirements-dev.txt
-      
+          # Each requirements.txt points at a wheel in its action folder, and pip
+          # resolves that path from the current directory.
+          (cd create_secret && pip install -r requirements-dev.txt)
+          (cd get_secret && pip install -r requirements-dev.txt)
+          (cd get_totp_code && pip install -r requirements-dev.txt)
+          (cd update_secret && pip install -r requirements-dev.txt)
+
       - name: Running Unit tests
         run: |
           cd create_secret && python3 -m coverage run --data-file=../.coverage.create -m unittest discover tests/unit -v -p 'test_*.py'
           cd ../get_secret && python3 -m coverage run --data-file=../.coverage.get -m unittest discover tests/unit -v -p 'test_*.py'
-          cd .. && python3 -m coverage combine .coverage.create .coverage.get
+          cd ../get_totp_code && python3 -m coverage run --data-file=../.coverage.totp -m unittest discover tests/unit -v -p 'test_*.py'
+          cd ../update_secret && python3 -m coverage run --data-file=../.coverage.update -m unittest discover tests/unit -v -p 'test_*.py'
+          cd .. && python3 -m coverage combine .coverage.create .coverage.get .coverage.totp .coverage.update
           python3 -m coverage report
           python3 -m coverage xml
 
