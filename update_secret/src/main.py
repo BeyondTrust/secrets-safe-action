@@ -98,7 +98,7 @@ except EnvironmentError as verify_ca_error:
 
 
 # The API answers a successful credential or text update with 204 No Content,
-# but beyondtrust-bips-library (<= 3.5.1) expects 200 for those two PUTs and
+# but beyondtrust-bips-library (<= 3.6.0) expects 200 for those two PUTs and
 # raises UpdateError ending in "statuscode: 204". That exact error means the
 # update was applied.
 NO_CONTENT_UPDATE_ERROR = re.compile(r"statuscode: 204\s*$")
