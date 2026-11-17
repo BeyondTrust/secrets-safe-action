@@ -79,7 +79,7 @@ Both validate API access (expects HTTP 200), configure certificates if provided,
 ### get_totp_code flow
 `main()` → `validate_secret_id()` (GUID check before auth) → `set_authentication()` → `write_totp_code()` → sign out
 
-Input `secret_id` is one secret GUID; the masked code is written to the fixed output `totp_code` (one step per secret), and the response's `ValidFromUtc` / `ValidToUtc` to `valid_from_utc` / `valid_to_utc` (unmasked, `""` when absent). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. Its retry list deliberately **omits 400** so the 400 reaches the library instead of becoming a `RetryError`.
+Input `secret_id` is one secret GUID; the masked code is written to the fixed output `totp_code` (one step per secret), and the response's `ValidFromUtc` / `ValidToUtc` to `valid_from_utc` / `valid_to_utc` (unmasked, `""` when absent). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. The library's default session does not retry 400, so the 400 reaches the library instead of becoming a `RetryError`.
 
 ### update_secret flow
 `main()` → `validate_inputs()` (GUID, one content type, TOTP, integers, JSON — all before auth) → `set_authentication()` → `update_secret()` (`get_secret_to_update()` → `build_update_kwargs()` → PUT) → sign out
@@ -95,7 +95,7 @@ Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/
 The helpers every action needs live in the library, in `secrets_safe_library.integrations.github_actions.common_utils`; fix them there, not in the actions:
 - `tls.parse_verify_ca()`: `VERIFY_CA` is boolean only (true/false tokens; a CA bundle path fails the step). `api_client.authenticate()` passes it to `Authentication`, which sets `session.verify`
 - `outputs.mask_secret()` (`::add-mask ::value` per line, CR/LF-safe; the space before the second `::` is intentional), `outputs.append_output()` (`$GITHUB_OUTPUT` heredoc with a UUID delimiter)
-- `api_client.create_session(retry_status_codes)`: `Retry(total=3, backoff_factor=0.2, status_forcelist=[400, 408, 500, 502, 503, 504])` by default; `get_totp_code` passes the list without 400
+- `api_client.create_session(retry_status_codes)`: `Retry(total=3, backoff_factor=0.2, status_forcelist=[408, 429, 500, 502, 503, 504])` by default, on GET and POST (400 is not retried, so callers see it instead of a `RetryError`)
 - `api_client.authenticate()`: API key or OAuth, 30 s timeouts, fails the step unless sign-in returns 200
 - `common.show_error()`, `common.create_file()`
 

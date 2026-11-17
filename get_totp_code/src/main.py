@@ -65,12 +65,6 @@ try:
 except EnvironmentError as verify_ca_error:
     common.show_error(str(verify_ca_error), logger)
 
-# Unlike the other actions, 400 is not retried: the TOTP code endpoint returns
-# 400 for a text or file secret, which must reach the library as a response so
-# it raises SecretTypeNotSupportedError. Retrying it would fail with a generic
-# RetryError after wasting the retries.
-RETRY_STATUS_CODES = [408, 500, 502, 503, 504]
-
 
 def is_guid(value) -> bool:
     """
@@ -222,7 +216,7 @@ def main() -> None:
     secret_id = validate_secret_id(SECRET_ID)
 
     try:
-        with api_client.create_session(RETRY_STATUS_CODES) as session:
+        with api_client.create_session() as session:
             authentication_obj = set_authentication(session)
             # Sign out on failures too (show_error exits with SystemExit), so
             # the API session isn't left open until it expires.

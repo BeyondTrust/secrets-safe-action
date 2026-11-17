@@ -275,20 +275,20 @@ class TestRetryStrategy(unittest.TestCase):
     The TOTP code endpoint answers 400 for a text or file secret. That response
     must reach the library on the first attempt so it can raise
     SecretTypeNotSupportedError, rather than being retried into a RetryError.
-    How the session retries is tested in the library (api_client).
+    The library's default session does not retry 400 (tested in the library).
     """
 
-    def test_400_is_not_retried(self):
-        self.assertNotIn(400, main.RETRY_STATUS_CODES)
+    def test_default_session_does_not_retry_400(self):
+        self.assertNotIn(400, main.api_client.DEFAULT_RETRY_STATUS_CODES)
 
     @patch("src.main.SECRET_ID", SECRET_ID)
     @patch("src.main.write_totp_code")
     @patch("src.main.set_authentication")
     @patch("src.main.api_client.create_session")
-    def test_main_uses_the_retry_list(self, create_session_mock, *_mocks):
+    def test_main_uses_the_default_session(self, create_session_mock, *_mocks):
         main.main()
 
-        create_session_mock.assert_called_once_with(main.RETRY_STATUS_CODES)
+        create_session_mock.assert_called_once_with()
 
 
 if __name__ == "__main__":
