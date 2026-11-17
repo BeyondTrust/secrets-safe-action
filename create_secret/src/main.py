@@ -335,10 +335,13 @@ def main() -> None:
 
     try:
         with api_client.create_session() as session:
-
             authentication_obj = set_authentication(session)
-            create_secret(authentication_obj, totp_enabled, totp_secret_key)
-            authentication_obj.sign_app_out()
+            # Sign out on failures too (show_error exits with SystemExit), so
+            # the API session isn't left open until it expires.
+            try:
+                create_secret(authentication_obj, totp_enabled, totp_secret_key)
+            finally:
+                authentication_obj.sign_app_out()
 
     except Exception as e:
         common.show_error(f"An unexpected error occurred: {e}", logger)

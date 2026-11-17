@@ -326,6 +326,44 @@ class TestMain(unittest.TestCase):
 
             mock_show_error.assert_called_once()
 
+    @patch("src.main.common.show_error")
+    @patch("src.main.api_client.authenticate")
+    @patch("src.main.api_client.create_session")
+    def test_main_signs_out_when_retrieval_fails(
+        self, mock_create_session, mock_authenticate, mock_show_error
+    ):
+        """main signs out even when an invalid secret_path exits after sign-in."""
+        mock_show_error.side_effect = SystemExit(1)
+        mock_create_session.return_value.__enter__.return_value = MagicMock()
+        mock_auth = MagicMock()
+        mock_authenticate.return_value = mock_auth
+
+        with patch("src.main.SECRET_PATH", "{bad"), self.assertRaises(SystemExit):
+            main.main()
+
+        mock_auth.sign_app_out.assert_called_once()
+
+    @patch("src.main.common.show_error")
+    @patch("src.main.api_client.authenticate")
+    @patch("src.main.api_client.create_session")
+    def test_main_signs_out_when_nothing_to_do(
+        self, mock_create_session, mock_authenticate, mock_show_error
+    ):
+        """main signs out when both path inputs are empty."""
+        mock_show_error.side_effect = SystemExit(1)
+        mock_create_session.return_value.__enter__.return_value = MagicMock()
+        mock_auth = MagicMock()
+        mock_authenticate.return_value = mock_auth
+
+        with patch("src.main.SECRET_PATH", ""), patch(
+            "src.main.MANAGED_ACCOUNT_PATH", ""
+        ), self.assertRaises(SystemExit):
+            main.main()
+
+        mock_auth.sign_app_out.assert_called_once()
+        args, _ = mock_show_error.call_args_list[0]
+        self.assertIn("Nothing to do", args[0])
+
 
 if __name__ == "__main__":
     unittest.main()

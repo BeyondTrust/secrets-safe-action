@@ -137,6 +137,29 @@ class TestMain(unittest.TestCase):
         mock_auth.sign_app_out.assert_called_once()
 
     @patch("src.main.common.show_error")
+    @patch("src.main.api_client.create_session")
+    @patch("src.main.create_secret")
+    @patch("src.main.set_authentication")
+    def test_main_signs_out_when_create_secret_fails(
+        self,
+        mock_set_authentication,
+        mock_create_secret,
+        mock_session_class,
+        mock_show_error,
+    ):
+        """main signs out even when create_secret exits through show_error."""
+        mock_session_class.return_value.__enter__.return_value = MagicMock()
+        mock_auth = MagicMock()
+        mock_set_authentication.return_value = mock_auth
+        mock_create_secret.side_effect = SystemExit(1)
+
+        with self.assertRaises(SystemExit):
+            main()
+
+        mock_auth.sign_app_out.assert_called_once()
+        mock_show_error.assert_not_called()
+
+    @patch("src.main.common.show_error")
     @patch("src.main.secrets_safe.SecretsSafe", autospec=True)
     @patch("src.main.get_folder")
     @patch("src.main.folders.Folder", autospec=True)

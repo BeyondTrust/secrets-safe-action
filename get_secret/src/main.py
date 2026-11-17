@@ -143,6 +143,38 @@ def get_secrets(
             outputs.append_output(output_id, get_secret_response)
 
 
+def retrieve_secrets(authentication_obj: authentication.Authentication) -> None:
+    """
+    Retrieve the requested secrets and managed accounts and write them as outputs.
+
+    Args:
+        authentication_obj (authentication.Authentication): Authenticated client.
+
+    Returns:
+        None
+    """
+    if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
+        error_message = "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
+        common.show_error(error_message, logger)
+
+    if SECRET_PATH:
+        secrets_safe_obj = secrets_safe.SecretsSafe(
+            authentication=authentication_obj,
+            logger=logger,
+            separator=PATH_SEPARATOR,
+            decrypt=DECRYPT,
+        )
+        get_secrets(secrets_safe_obj, SECRET_PATH)
+
+    if MANAGED_ACCOUNT_PATH:
+        managed_account_obj = managed_account.ManagedAccount(
+            authentication=authentication_obj,
+            logger=logger,
+            separator=PATH_SEPARATOR,
+        )
+        get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
+
+
 def main() -> None:
     try:
         with api_client.create_session() as session:
@@ -162,30 +194,12 @@ def main() -> None:
                 api_version=API_VERSION,
             )
 
-            if not SECRET_PATH and not MANAGED_ACCOUNT_PATH:
-                error_message = (
-                    "Nothing to do, SECRET and MANAGED_ACCOUNT parameters are empty"
-                )
-                common.show_error(error_message, logger)
-
-            if SECRET_PATH:
-                secrets_safe_obj = secrets_safe.SecretsSafe(
-                    authentication=authentication_obj,
-                    logger=logger,
-                    separator=PATH_SEPARATOR,
-                    decrypt=DECRYPT,
-                )
-                get_secrets(secrets_safe_obj, SECRET_PATH)
-
-            if MANAGED_ACCOUNT_PATH:
-                managed_account_obj = managed_account.ManagedAccount(
-                    authentication=authentication_obj,
-                    logger=logger,
-                    separator=PATH_SEPARATOR,
-                )
-                get_secrets(managed_account_obj, MANAGED_ACCOUNT_PATH)
-
-            authentication_obj.sign_app_out()
+            # Sign out on failures too (show_error exits with SystemExit), so
+            # the API session isn't left open until it expires.
+            try:
+                retrieve_secrets(authentication_obj)
+            finally:
+                authentication_obj.sign_app_out()
 
     except Exception as e:
         common.show_error(e, logger)
