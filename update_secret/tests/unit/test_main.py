@@ -5,12 +5,10 @@ from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, patch
 
 import requests
-from secrets_safe_library import secrets_safe
 from src import main
 from src.main import (
     get_secret_type,
     get_totp_settings,
-    is_no_content_success,
     mask_sensitive_inputs,
     parse_optional_bool,
     parse_optional_int,
@@ -428,19 +426,6 @@ class TestUpdateSecret(InputsTestCase):
                         update_secret(MagicMock(), settings())
                 self.assertIn(text, mock_show_error.call_args[0][0])
 
-    @patch("src.main.common.show_error")
-    def test_204_update_error_is_success(self, mock_show_error):
-        """The library's 204 UpdateError means the update was applied."""
-        self.set_inputs(**CREDENTIAL_INPUTS)
-
-        with mocked_sdk() as sdk:
-            sdk.return_value.update_secret.side_effect = main.exceptions.UpdateError(
-                "Error running put request, message: , statuscode: 204"
-            )
-            update_secret(MagicMock(), settings())
-
-        mock_show_error.assert_not_called()
-
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_current_secret_checks(self, mock_show_error):
         """
@@ -585,22 +570,13 @@ class TestUpdateSecret(InputsTestCase):
             ],
         )
 
-    def test_is_no_content_success(self):
-        self.assertTrue(is_no_content_success(Exception("message: , statuscode: 204")))
-        for message in (
-            "message: , statuscode: 404",
-            "message: statuscode: 204 in a body, statuscode: 400",
-            "statuscode: 2040",
-        ):
-            with self.subTest(message=message):
-                self.assertFalse(is_no_content_success(Exception(message)))
-
 
 class TestUpdateSecretWithLibrary(InputsTestCase):
     """
-    Runs the real library update_secret against a fake HTTP session that
-    answers like the API does (Swagger: 204 No Content), so the 204 handling is
-    checked against the library code itself rather than a mock of it.
+    Runs the real library update_secret against a fake HTTP session. Like the
+    Public API, which reads the secret back after the service's 204 and answers
+    200 with the secret (SecretsSafeBroker.PutAsync / PutTextAsync), a
+    successful credential or text update returns 200 with a JSON body.
     """
 
     def _authentication(
@@ -615,13 +591,15 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
         auth._req.get.return_value = MagicMock(
             status_code=200, json=MagicMock(return_value=secret)
         )
-        auth._req.put.return_value = MagicMock(status_code=status_code, text="")
+        auth._req.put.return_value = MagicMock(
+            status_code=status_code, text="", json=MagicMock(return_value=secret)
+        )
         return auth
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
-    def test_credential_204_succeeds(self, mock_show_error):
+    def test_credential_200_succeeds(self, mock_show_error):
         self.set_inputs(**CREDENTIAL_INPUTS, TOTP_ENABLED="true", TOTP_SECRET_KEY=SEED)
-        auth = self._authentication(204)
+        auth = self._authentication(200)
 
         update_secret(auth, settings(totp_enabled=True, totp_secret_key=SEED))
 
@@ -636,9 +614,9 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
         self.assertEqual(body["TotpSecretKey"], SEED)
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
-    def test_text_204_succeeds(self, mock_show_error):
+    def test_text_200_succeeds(self, mock_show_error):
         self.set_inputs(**BASE_INPUTS, TEXT="t")
-        auth = self._authentication(204, secret_type=main.TEXT_TYPE)
+        auth = self._authentication(200, secret_type=main.TEXT_TYPE)
 
         update_secret(auth, settings(main.TEXT_TYPE))
 
@@ -661,7 +639,7 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
         sends them back.
         """
         self.set_inputs(SECRET_ID=SECRET_ID, USERNAME="user")
-        auth = self._authentication(204, existing=EXISTING_CREDENTIAL)
+        auth = self._authentication(200, existing=EXISTING_CREDENTIAL)
 
         with patch("builtins.print"):
             update_secret(auth, settings(owners=None))
@@ -696,30 +674,13 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
     def test_totp_needs_api_3_3(self, mock_show_error):
         """The library rejects TOTP below 3.3 before sending the request."""
         self.set_inputs(**CREDENTIAL_INPUTS, TOTP_ENABLED="true", TOTP_SECRET_KEY=SEED)
-        auth = self._authentication(204, api_version="3.1")
+        auth = self._authentication(200, api_version="3.1")
 
         with self.assertRaises(SystemExit):
             update_secret(auth, settings(totp_enabled=True, totp_secret_key=SEED))
 
         self.assertIn("Invalid or missing parameters", mock_show_error.call_args[0][0])
         auth._req.put.assert_not_called()
-
-    def test_library_still_expects_200(self):
-        """
-        Documents the library behaviour the 204 workaround exists for. If this
-        fails, the library accepts 204 and NO_CONTENT_UPDATE_ERROR can go.
-        """
-        sdk = secrets_safe.SecretsSafe(
-            authentication=self._authentication(204), logger=main.logger
-        )
-        with self.assertRaises(main.exceptions.UpdateError):
-            sdk.update_secret(
-                secret_id=SECRET_ID,
-                title="Title",
-                username="u",
-                password="p",
-                owners=OWNERS,
-            )
 
 
 class TestMasking(InputsTestCase):

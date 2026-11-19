@@ -27,7 +27,7 @@ from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlsplit
 
 import requests
-from secrets_safe_library import authentication, exceptions, secrets_safe, utils
+from secrets_safe_library import authentication, exceptions, secrets_safe
 from secrets_safe_library.integrations.github_actions.common_utils import (
     api_client,
     common,
@@ -95,13 +95,6 @@ try:
     VERIFY_CA = tls.parse_verify_ca(env.get("VERIFY_CA"))
 except EnvironmentError as verify_ca_error:
     common.show_error(str(verify_ca_error), logger)
-
-
-# The API answers a successful credential or text update with 204 No Content,
-# but beyondtrust-bips-library (<= 3.6.0) expects 200 for those two PUTs and
-# raises UpdateError ending in "statuscode: 204". That exact error means the
-# update was applied.
-NO_CONTENT_UPDATE_ERROR = re.compile(r"statuscode: 204\s*$")
 
 
 def mask_sensitive_inputs() -> None:
@@ -363,21 +356,6 @@ def parse_json_list(value: str, name: str, allow_empty: bool) -> Optional[list]:
     return parsed
 
 
-def is_no_content_success(error: Exception) -> bool:
-    """
-    Return True when an UpdateError only reports the 204 No Content answer of
-    a successful credential or text update. See NO_CONTENT_UPDATE_ERROR.
-
-    Args:
-        error (Exception): The error raised by update_secret.
-
-    Returns:
-        bool: True when the update was applied.
-    """
-
-    return bool(NO_CONTENT_UPDATE_ERROR.search(str(error)))
-
-
 def get_secret_to_update(
     secrets_safe_obj: secrets_safe.SecretsSafe, secret_type: str
 ) -> Dict[str, Any]:
@@ -552,16 +530,6 @@ def update_secret(
 
         logger.info("Secret updated successfully")
     except exceptions.UpdateError as e:
-        if is_no_content_success(e):
-            utils.print_log(
-                logger,
-                "The library reported the API's 204 No Content answer as an "
-                "error; the secret was updated.",
-                logging.WARNING,
-            )
-            logger.info("Secret updated successfully")
-            return
-
         common.show_error(
             f"Error updating secret {SECRET_ID}: {e}. Check that the secret "
             f"exists, that it is a {secret_type} secret, and that the "

@@ -38,7 +38,7 @@ The full project rules live in `CLAUDE.md` at the repository root. When this fil
 | Secrets Safe service behind those endpoints | `BeyondTrust/TeamPasswords` | `src/BeyondTrust.TeamPasswords.Api/Controllers/` |
 | Reference CLI with the same operations | `BeyondTrust/ps-integration-cli` | `src/ps_cli/controllers/secrets.py` |
 
-The backend is the source of truth for field names, required fields, status codes and permission checks. Known gaps between the API, its Swagger and the library are documented in `CLAUDE.md` (for example `update_secret`: the PUT returns 204 while the library expects 200, and `FolderId` is required although the Swagger marks it read-only).
+The backend is the source of truth for field names, required fields, status codes and permission checks. Known gaps between the API, its Swagger and the library are documented in `CLAUDE.md` (for example `update_secret`: the Swagger documents 204 for the PUT, but the Public API answers 200 with the secret, and `FolderId` is required although the Swagger marks it read-only).
 
 ## High-risk areas
 

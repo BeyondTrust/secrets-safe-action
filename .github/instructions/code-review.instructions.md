@@ -26,7 +26,7 @@ Not a ground, never comment on:
 - Generic advice ("ensure this is tested", "verify this works against a real instance") without a specific gap. Do not ask for a test unless the missing test is the finding.
 - PR title, PR description, commit messages, `CHANGELOG.md`, `version.txt`. A mismatch between the description and the code is not a ground; comment only if the code itself fails a ground above.
 - Code outside the diff, unless the diff breaks it, and behaviour the diff carries over unchanged from `main` or from an earlier PR (a stacked base PR included). A security gap (ground 2) is reported even when it is carried over.
-- A documented workaround for a known library or API gap listed in `CLAUDE.md` (the 204 accepted as success on `update_secret`, `FolderId` sent although the Swagger marks it read-only), unless the diff breaks the workaround.
+- A documented workaround for a known library or API gap listed in `CLAUDE.md` (`FolderId` sent on `update_secret` although the Swagger marks it read-only), unless the diff breaks the workaround.
 
 ## Verify before you write
 
