@@ -496,7 +496,12 @@ def build_update_kwargs(
         "owner_type": OWNER_TYPE or secret_dict.get("OwnerType"),
         "owners": settings["owners"] or to_library_owners(secret_dict.get("Owners")),
         "notes": NOTES or secret_dict.get("Notes"),
-        "urls": settings["urls"] or secret_dict.get("Urls"),
+        # An empty array clears the URLs; only an empty input keeps them.
+        "urls": (
+            settings["urls"]
+            if settings["urls"] is not None
+            else secret_dict.get("Urls")
+        ),
         "totp_enabled": settings["totp_enabled"],
         "totp_secret_key": settings["totp_secret_key"],
     }

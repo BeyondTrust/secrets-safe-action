@@ -392,7 +392,7 @@ This action updates an existing credential, text or file secret, identified by i
 | **password, password\_rule\_id (optional)** | Credential secrets: left empty, the current values are kept. |
 | **text** | Text secrets: required, because text content cannot be read back. |
 | **file\_name, file\_content** | File secrets: both required, because file content cannot be read back. |
-| **secret\_title, secret\_description, owners, owner\_id, owner\_type, notes, urls (optional)** | Same as for the create secret action. Left empty, the current value is kept. **owners** replaces the current owners when it is set. |
+| **secret\_title, secret\_description, owners, owner\_id, owner\_type, notes, urls (optional)** | Same as for the create secret action. Left empty, the current value is kept. **owners** replaces the current owners when it is set. **urls** set to `[]` removes the current URLs. |
 | **totp\_enabled (optional)** | Credential secrets, **api\_version** 3.3: **true** sets or replaces the seed given in **totp\_secret\_key**, **false** turns TOTP off, and empty (the default) leaves the current TOTP setting unchanged. |
 | **totp\_secret\_key (optional)** | TOTP seed, as a Base32 string or an `otpauth://` URI (maximum 1024 characters). Required when **totp\_enabled** is **true**, and rejected otherwise. Masked in the logs. |
 

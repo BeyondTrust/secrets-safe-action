@@ -546,6 +546,17 @@ class TestUpdateSecret(InputsTestCase):
         # The folder is always the current one: secrets are not moved.
         self.assertEqual(kwargs["folder_id"], FOLDER_ID)
 
+    @patch("src.main.common.show_error")
+    def test_empty_urls_array_clears_urls(self, mock_show_error):
+        """urls: [] removes the current URLs instead of keeping them."""
+        self.set_inputs(**CREDENTIAL_INPUTS)
+
+        with mocked_sdk(existing=EXISTING_CREDENTIAL) as sdk, patch("builtins.print"):
+            update_secret(MagicMock(), settings(urls=[]))
+
+        kwargs = sdk.return_value.update_secret.call_args.kwargs
+        self.assertEqual(kwargs["urls"], [])
+
     def test_current_password_is_masked(self):
         """A password kept from the existing secret is masked like the input."""
         self.set_inputs(SECRET_ID=SECRET_ID, USERNAME="user")

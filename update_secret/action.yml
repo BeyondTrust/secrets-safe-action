@@ -94,7 +94,7 @@ inputs:
     default: ''
   urls:
     description: |
-      URLs associated with the secret (in JSON format). Left empty, the current URLs are kept. Example:
+      URLs associated with the secret (in JSON format). Left empty, the current URLs are kept; `[]` removes them. Example:
       `[{"url":"https://example.com"}]`
     required: false
     default: ''
