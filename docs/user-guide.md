@@ -1,6 +1,6 @@
 # GitHub Custom Action | PS
 
-> Source: [docs.beyondtrust.com/bips/docs/ps-github](https://docs.beyondtrust.com/bips/docs/ps-github) (page updated 2026-07-16).
+> Source: [docs.beyondtrust.com/bips/docs/ps-github](https://docs.beyondtrust.com/bips/docs/ps-github) (page updated 2026-07-16), extended with the TOTP inputs of the create secret action, the get TOTP code and update secret actions, and the boolean-only **verify\_ca** input.
 
 The Secrets Safe custom action is a GitHub integration for Secrets Safe, which enables using Secrets Safe secrets management capabilities with GitHub workflows.
 
@@ -69,7 +69,7 @@ The Secrets Safe custom action retrieves ASCII secrets from BeyondTrust Secrets 
 | **client\_secret<br>(required)** | API OAuth Client Secret. |
 | **api\_url (required)** | BeyondTrust Password Safe API URL.<br>`https://example.com:443/beyondtrust/api/public/V3` |
 | **api\_version<br>(optional)** | The recommended version is 3.1. If no version is specified, the default API version **3.0** is used. |
-| **verify\_ca<br>(optional)** | Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to **True** if not specified.-<br><br>**False** means **insecure** and instructs the Secrets Safe custom action not to verify the certificate authority. |
+| **verify\_ca<br>(optional)** | Indicates whether to verify the certificate authority on the Secrets Safe instance. Defaults to **True** if not specified. Accepts **true** or **false** only: any other value, including a path to a CA bundle, fails the step.<br><br>**False** means **insecure** and instructs the Secrets Safe custom action not to verify the certificate authority.<br><br>**True** verifies against the root certificates bundled with the Python `certifi` package, not the operating system trust store, so a certificate from an internal or self-signed CA fails verification. |
 | **certificate<br>(optional)** | Content of the certificate (cert.pem) for use when authenticating with an OAuth Client ID using a Client Certificate |
 | **certificate\_key<br>(optional)** | Certificate private key (key.pem). For use when authenticating with an OAuth Client ID. |
 | **secret\_path (required)** | Path of the secret to retrieve. Special characters must be escaped. |
@@ -110,7 +110,7 @@ The Secrets Safe custom action retrieves ASCII secrets from BeyondTrust Secrets 
        "path": "system/account2",
        "output_id": "account2"
    }
-[
+]
 
 ```
 
@@ -164,8 +164,8 @@ The action supports two authentication methods:
 | **client\_id<br>(optional)** | The API OAuth Client ID configured in BeyondInsight for your application. |
 | **client\_secret<br>(optional)** | The API OAuth Client Secret configured in BeyondInsight for your application. |
 | **api\_url (required)** | The API URL for the Secrets Safe instance.<br>`https://example.com:443/BeyondTrust/api/public/v3` |
-| **api\_version<br>(optional)** | The recommended version is 3.1. If no version is specified, the default API version 3.0 is used. |
-| **verify\_ca<br>(optional)** | Indicates whether to verify the certificate authority on the Secrets Safe instance. Default value is **True**. |
+| **api\_version<br>(optional)** | Supported versions are 3.0, 3.1, 3.2 and 3.3. The recommended version is 3.1. If no version is specified, the default API version 3.0 is used. Use **3.3** to create TOTP-enabled credential secrets. |
+| **verify\_ca<br>(optional)** | Indicates whether to verify the certificate authority on the Secrets Safe instance. Default value is **True**. Accepts **true** or **false** only, as for the get secret action. |
 | **certificate<br>(optional)** | Content of the certificate (cert.pem) for use when authenticating with an API key using a Client Certificate. |
 | **certificate\_key<br>(optional)** | Certificate private key (key.pem) for use when authenticating with an API key using a Client Certificate. |
 
@@ -182,7 +182,12 @@ The action supports two authentication methods:
 | Input value-Credential Secrets | Description                           |
 | :----------------------------- | :------------------------------------ |
 | **username (optional)**        | Username for credential type secrets. |
-| **password (optional)**        | Password for credential type secrets. |
+| **password (optional)**        | Password for credential type secrets. Masked in the logs. |
+| **totp\_enabled (optional)** | Set to **true** to enable TOTP on the credential secret. Requires **api\_version** 3.3 and **totp\_secret\_key**. Accepts **true**, **false**, or empty (the default) to leave it out of the request. Any other value fails the step. |
+| **totp\_secret\_key (optional)** | TOTP seed, as a Base32 string or an `otpauth://` URI (maximum 1024 characters). Required when **totp\_enabled** is **true**, and rejected otherwise. Masked in the logs, and never returned by the API. |
+
+> [!NOTE]
+> TOTP inputs are only supported for credential secrets (**username** set). Pass the password and the TOTP seed from GitHub secrets, for example `${{ secrets.TOTP_SECRET_KEY }}`: the runner prints a step's `with:` values before the action starts, so a literal value would appear in the log before the action can mask it.
 
 | Input value-Text Secrets | Description                         |
 | :----------------------- | :---------------------------------- |
@@ -227,32 +232,6 @@ The action supports two authentication methods:
     USERNAME: "username"
     PASSWORD: "p4ssw0rd!#"
     TEXT: ""
-    FILE_NAME: ""
-    FILE_CONTENT: ""
-    OWNER_ID: "1"
-    OWNER_TYPE: "User"
-    NOTES: ""
-    OWNERS: '[{"owner_id": 1}]'
-# Example 2: Create Text Secret
-
-
-- name: Create Text secret
-  id: text_secret
-  uses: BeyondTrust/secrets-safe-action/create_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342
-  env:   
-    API_URL: ${{vars.API_URL}}
-    CLIENT_ID: ${{secrets.CLIENT_ID}}
-    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
-    VERIFY_CA: ${{vars.VERIFY_CA}}
-    LOG_LEVEL: ${{vars.LOG_LEVEL}}
-    API_VERSION: "3.1"
-  with:
-    SECRET_TITLE: "Secret Title"
-    PARENT_FOLDER_NAME: "Parent folder name"
-    SECRET_DESCRIPTION: ""
-    USERNAME: ""
-    PASSWORD: ""
-    TEXT: "Doc_S3guro!21"
     FILE_NAME: ""
     FILE_CONTENT: ""
     OWNER_ID: "1"
@@ -315,6 +294,139 @@ The action supports two authentication methods:
     OWNER_TYPE: "User"
     NOTES: ""
     OWNERS: '[{"owner_id": 1}]'
+```
+
+### Create TOTP-enabled Credential Secret
+
+TOTP support needs BeyondInsight and Password Safe 26.3 or later (API version 3.3), and a release of this action that includes it. Pin **uses** to that release's commit SHA.
+
+```yaml
+- name: Create TOTP credential secret
+  id: totp_secret
+  uses: BeyondTrust/secrets-safe-action/create_secret@<commit-sha> # release that adds TOTP
+  with:
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    API_VERSION: "3.3"
+    SECRET_TITLE: "Secret Title"
+    PARENT_FOLDER_NAME: "Parent folder name"
+    USERNAME: "username"
+    PASSWORD: ${{ secrets.SECRET_PASSWORD }}
+    TOTP_ENABLED: "true"
+    TOTP_SECRET_KEY: ${{ secrets.TOTP_SECRET_KEY }}
+    OWNERS: '[{"user_id": 1}]'
+```
+
+## Setup for GitHub get TOTP code action
+
+This action retrieves the current TOTP one-time code of a TOTP-enabled credential secret and makes it available as the step output **totp\_code**. To get the codes of several secrets, use one step per secret. The code is masked on the runner before it is written to the output. A code is only valid for the current TOTP period (typically 30 seconds), so use it in the next step.
+
+### Prerequisites
+
+* BeyondInsight and Password Safe 26.3 or later (API version 3.3)
+* A credential secret created with TOTP enabled
+* The application must be authorized to read the secret
+* Runners must use a Linux operating system with Docker installed
+
+### Get TOTP Code Inputs
+
+| Input value | Description |
+| :--- | :--- |
+| **api\_key, client\_id, client\_secret, api\_url, verify\_ca, certificate, certificate\_key, log\_level** | Same as for the get secret action. |
+| **api\_version (optional)** | Defaults to **3.3**, the version that adds TOTP support for credential secrets. |
+| **secret\_id (required)** | ID (GUID) of the TOTP-enabled credential secret, for example `a1b2c3d4-e5f6-7890-abcd-ef1234567890`. A value that is not a GUID fails the step without any API call. |
+
+The step fails if the secret is a text or file secret, or if the secret is not found or does not have TOTP enabled.
+
+### Get TOTP Code Outputs
+
+| Output | Description |
+| :--- | :--- |
+| **totp\_code** | The current TOTP code, read as `${{ steps.<step_id>.outputs.totp_code }}`. Masked in the logs. |
+| **valid\_from\_utc** | UTC time from which the code is valid (inclusive), for example `2026-11-13T10:00:00.0000000+00:00`. Not masked. |
+| **valid\_to\_utc** | UTC time at which the code expires (exclusive), for example `2026-11-13T10:00:30.0000000+00:00`. Not masked. |
+
+> [!TIP]
+> **Example**
+
+```yaml
+- name: Get TOTP code
+  id: totp
+  uses: BeyondTrust/secrets-safe-action/get_totp_code@<commit-sha> # release that adds get_totp_code
+  with:
+    API_URL: ${{vars.API_URL}}
+    VERIFY_CA: ${{vars.VERIFY_CA}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    SECRET_ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+
+# Use the code straight away: it expires at the end of the current TOTP period.
+- name: Sign in
+  run: ./sign-in.sh
+  env:
+    TOTP_CODE: ${{ steps.totp.outputs.totp_code }}
+```
+
+## Setup for GitHub update secret action
+
+This action updates an existing credential, text or file secret, identified by its ID. Its inputs match the create secret action, with **secret\_id** in place of **parent\_folder\_name**.
+
+> [!IMPORTANT]
+> **Inputs left empty keep their current values.** The action reads the secret first and sends back its current title, description, owners, notes, URLs, password rule and (for credential secrets) password for every input you leave empty. A field can therefore be changed but not cleared. The secret stays in its folder; it cannot be moved with this action.
+
+### Prerequisites
+
+* The application must be allowed to read and edit the secret
+* To change TOTP on a credential secret, BeyondInsight and Password Safe 26.3 or later and **api\_version** 3.3
+* Runners must use a Linux operating system with Docker installed
+
+### Update Secret Inputs
+
+| Input value | Description |
+| :--- | :--- |
+| **api\_key, client\_id, client\_secret, api\_url, api\_version, verify\_ca, certificate, certificate\_key, log\_level** | Same as for the create secret action. |
+| **secret\_id (required)** | ID (GUID) of the secret to update. |
+| **username** | Credential secrets: required. |
+| **password, password\_rule\_id (optional)** | Credential secrets: left empty, the current values are kept. |
+| **text** | Text secrets: required, because text content cannot be read back. |
+| **file\_name, file\_content** | File secrets: both required, because file content cannot be read back. |
+| **secret\_title, secret\_description, owners, owner\_id, owner\_type, notes, urls (optional)** | Same as for the create secret action. Left empty, the current value is kept. **owners** replaces the current owners when it is set. |
+| **totp\_enabled (optional)** | Credential secrets, **api\_version** 3.3: **true** sets or replaces the seed given in **totp\_secret\_key**, **false** turns TOTP off, and empty (the default) leaves the current TOTP setting unchanged. |
+| **totp\_secret\_key (optional)** | TOTP seed, as a Base32 string or an `otpauth://` URI (maximum 1024 characters). Required when **totp\_enabled** is **true**, and rejected otherwise. Masked in the logs. |
+
+Set exactly one kind of content, matching the type of the secret being updated (the type cannot change). **password**, **text** and **totp\_secret\_key** are masked in the logs; pass them from GitHub secrets. All inputs are validated before the action authenticates, so invalid input fails the step without any API call.
+
+> [!TIP]
+> **Example**: Rotate a credential password and keep everything else
+
+```yaml
+- name: Rotate password
+  uses: BeyondTrust/secrets-safe-action/update_secret@<commit-sha> # release that adds update_secret
+  with:
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    API_VERSION: "3.3"
+    SECRET_ID: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+    USERNAME: "username"
+    PASSWORD: ${{ secrets.NEW_PASSWORD }}
+```
+
+> [!TIP]
+> **Example**: Update a text secret
+
+```yaml
+- name: Update text secret
+  uses: BeyondTrust/secrets-safe-action/update_secret@<commit-sha> # release that adds update_secret
+  with:
+    API_URL: ${{vars.API_URL}}
+    CLIENT_ID: ${{secrets.CLIENT_ID}}
+    CLIENT_SECRET: ${{secrets.CLIENT_SECRET}}
+    API_VERSION: "3.1"
+    SECRET_ID: "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
+    TEXT: ${{ secrets.TEXT_SECRET_VALUE }}
 ```
 
 ## Extracting Client Secret

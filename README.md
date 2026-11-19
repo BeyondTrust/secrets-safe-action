@@ -359,7 +359,7 @@ TOTP support needs a release of this action that includes it. Pin `uses:` to tha
 ```yaml
 - name: Create TOTP credential secret
   id: totp_secret
-  uses: BeyondTrust/secrets-safe-action/create_secret@bd174328f6b88a6cd795049a9dbe2a81c8669342 # v2.0.0
+  uses: BeyondTrust/secrets-safe-action/create_secret@<commit-sha> # release that adds TOTP
   with:
     API_URL: ${{vars.API_URL}}
     CLIENT_ID: ${{secrets.CLIENT_ID}}

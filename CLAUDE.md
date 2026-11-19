@@ -47,6 +47,8 @@ bandit -r create_secret/src get_secret/src get_totp_code/src update_secret/src
 # Configure .env file in each action directory first
 docker-compose -f create_secret/docker-compose.yml up
 docker-compose -f get_secret/docker-compose.yml up
+docker-compose -f get_totp_code/docker-compose.yml up
+docker-compose -f update_secret/docker-compose.yml up
 ```
 
 ## Architecture
@@ -60,16 +62,16 @@ Each action is self-contained with identical layout:
 ├── docker-compose.yml  # Local testing with .env file
 ├── requirements.txt    # beyondtrust-bips-library>=3.6.0,<4.0.0
 ├── requirements-dev.txt
-└── src/main.py         # All logic lives here (~260-280 lines)
+└── src/main.py         # All logic lives here (~200-350 lines; update_secret ~630)
     tests/unit/test_main.py
 ```
 
-### Authentication flow (both actions)
-Both actions support two mutually exclusive auth methods:
+### Authentication flow (all actions)
+All four actions support two mutually exclusive auth methods, through the library's `api_client.authenticate()`:
 1. **API Key** — `API_KEY` env var, optionally with `CERTIFICATE` + `CERTIFICATE_KEY`
 2. **OAuth Client Credentials** — `CLIENT_ID` + `CLIENT_SECRET` env vars
 
-Both validate API access (expects HTTP 200), configure certificates if provided, and set API version (default 3.0, recommended 3.1).
+They validate API access (expects HTTP 200), configure certificates if provided, and set the API version: default 3.0 (recommended 3.1) for `get_secret`, `create_secret` and `update_secret`, default 3.3 for `get_totp_code`. TOTP needs 3.3.
 
 ### get_secret flow
 `main()` → `api_client.authenticate()` (inline in `main()`) → `get_secrets()` → sign out
