@@ -4,11 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A BeyondTrust GitHub Actions repository providing two Docker-based custom actions for integrating with BeyondTrust Secrets Safe:
+A BeyondTrust GitHub Actions repository providing four Docker-based custom actions for integrating with BeyondTrust Secrets Safe:
 - **`get_secret/`** — Retrieves ASCII secrets and exposes them as masked GitHub Actions outputs
 - **`create_secret/`** — Creates new secrets (credential, text, or file types) in Secrets Safe
+- **`get_totp_code/`** — Retrieves the current TOTP code of TOTP-enabled credential secrets (API 3.3) as masked outputs
+- **`update_secret/`** — Updates an existing credential, text, or file secret by ID (full replacement PUT)
 
-Both actions are written in Python 3.12 on Alpine Linux containers and use the `beyondtrust-bips-library` SDK.
+All actions are written in Python 3.12 on Alpine Linux containers and use the `beyondtrust-bips-library` SDK.
 
 ## Commands
 
@@ -16,6 +18,8 @@ Both actions are written in Python 3.12 on Alpine Linux containers and use the `
 ```bash
 pip install -r create_secret/requirements.txt -r create_secret/requirements-dev.txt
 pip install -r get_secret/requirements.txt -r get_secret/requirements-dev.txt
+pip install -r get_totp_code/requirements.txt -r get_totp_code/requirements-dev.txt
+pip install -r update_secret/requirements.txt -r update_secret/requirements-dev.txt
 ```
 
 ### Run tests
@@ -23,17 +27,19 @@ pip install -r get_secret/requirements.txt -r get_secret/requirements-dev.txt
 # Run tests for a single action (from repo root)
 cd create_secret && python3 -m coverage run --data-file=../.coverage.create -m unittest discover tests/unit -v -p 'test_*.py'
 cd get_secret && python3 -m coverage run --data-file=../.coverage.get -m unittest discover tests/unit -v -p 'test_*.py'
+cd get_totp_code && python3 -m coverage run --data-file=../.coverage.totp -m unittest discover tests/unit -v -p 'test_*.py'
+cd update_secret && python3 -m coverage run --data-file=../.coverage.update -m unittest discover tests/unit -v -p 'test_*.py'
 
 # Combined coverage report
-python3 -m coverage combine .coverage.create .coverage.get && python3 -m coverage report
+python3 -m coverage combine .coverage.create .coverage.get .coverage.totp .coverage.update && python3 -m coverage report
 ```
 
 ### Run linters (matches CI)
 ```bash
-black --check create_secret/src get_secret/src
-isort --check-only create_secret/src get_secret/src
-flake8 create_secret/src get_secret/src
-bandit -r create_secret/src get_secret/src
+black --check create_secret/src get_secret/src get_totp_code/src update_secret/src
+isort --check-only create_secret/src get_secret/src get_totp_code/src update_secret/src
+flake8 create_secret/src get_secret/src get_totp_code/src update_secret/src
+bandit -r create_secret/src get_secret/src get_totp_code/src update_secret/src
 ```
 
 ### Local Docker testing
@@ -41,6 +47,8 @@ bandit -r create_secret/src get_secret/src
 # Configure .env file in each action directory first
 docker-compose -f create_secret/docker-compose.yml up
 docker-compose -f get_secret/docker-compose.yml up
+docker-compose -f get_totp_code/docker-compose.yml up
+docker-compose -f update_secret/docker-compose.yml up
 ```
 
 ## Architecture
@@ -52,34 +60,48 @@ Each action is self-contained with identical layout:
 ├── action.yml          # GitHub Actions metadata (inputs/outputs/runs)
 ├── Dockerfile          # python:3.12-alpine, non-root appuser (UID 1001)
 ├── docker-compose.yml  # Local testing with .env file
-├── requirements.txt    # beyondtrust-bips-library>=3.1.0,<4.0.0
+├── requirements.txt    # beyondtrust-bips-library>=3.6.0,<4.0.0
 ├── requirements-dev.txt
-└── src/main.py         # All logic lives here (~260-280 lines)
+└── src/main.py         # All logic lives here (~200-350 lines; update_secret ~630)
     tests/unit/test_main.py
 ```
 
-### Authentication flow (both actions)
-Both actions support two mutually exclusive auth methods:
+### Authentication flow (all actions)
+All four actions support two mutually exclusive auth methods, through the library's `api_client.authenticate()`:
 1. **API Key** — `API_KEY` env var, optionally with `CERTIFICATE` + `CERTIFICATE_KEY`
 2. **OAuth Client Credentials** — `CLIENT_ID` + `CLIENT_SECRET` env vars
 
-Both validate API access (expects HTTP 200), configure certificates if provided, and set API version (default 3.0, recommended 3.1).
+They validate API access (expects HTTP 200), configure certificates if provided, and set the API version: default 3.0 (recommended 3.1) for `get_secret`, `create_secret` and `update_secret`, default 3.3 for `get_totp_code`. TOTP needs 3.3. `create_secret` and `update_secret` must default `API_VERSION` themselves: the library's secrets validator raises `Unsupported version: None` without one. They check the version (and 3.3 for TOTP) before signing in.
+
+File secret content is written with `common.create_file(..., base_dir=<TemporaryDirectory>)` (outside the runner workspace, path-traversal guarded, removed after the call), and `TEXT` / `FILE_CONTENT` are masked like the password.
 
 ### get_secret flow
-`main()` → (inline auth) → `get_secrets()` → sign out
+`main()` → `api_client.authenticate()` (inline in `main()`) → `get_secrets()` → sign out
 
-Auth configuration is handled inline inside `main()` (no separate function). `get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value via `::add-mask ::value` (space before second `::` is intentional — GitHub Actions accepts this form), and writes to `$GITHUB_OUTPUT` using UUID delimiters for multiline safety.
+`get_secrets()` parses JSON input (up to 20 secrets), calls the bips library, masks each value with `outputs.mask_secret()` and writes it with `outputs.append_output()`.
+
+### get_totp_code flow
+`main()` → `validate_secret_id()` (GUID check before auth) → `set_authentication()` → `write_totp_code()` → sign out
+
+Input `secret_id` is one secret GUID; the masked code is written to the fixed output `totp_code` (one step per secret), and the response's `ValidFromUtc` / `ValidToUtc` to `valid_from_utc` / `valid_to_utc` (unmasked, `""` when absent). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. The library's default session does not retry 400, so the 400 reaches the library instead of becoming a `RetryError`.
+
+### update_secret flow
+`main()` → `validate_inputs()` (GUID normalized to canonical form, one content type, TOTP, API version, integers, JSON — all before auth) → `set_authentication()` → `update_secret()` (`get_secret_to_update()` → `build_update_kwargs()` → PUT) → sign out
+
+Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/text` or `/file`). Following ps-integration-cli `secrets update` (`_call_update_secret`), `build_update_kwargs()` sends every field as the input or, when it is omitted, the existing value read with `get_secret_by_id()` (parsed inputs use `keep_if_omitted()`, so an explicit `0` or `[]` is sent; empty text inputs can't clear a value): title, description, owners, owner type/id, notes, URLs, password rule and the credential password. Only `username`, `text` and the file can't be read back, so they are required. `FolderId` is always the current one (the live API requires it, although the Swagger marks it read-only), so secrets are never moved. Owners read back use API names (`UserId`), which the library's validator rejects, so `to_library_owners()` converts them (`user_id`). As in the CLI, any `UpdateError` fails the step: the Public API answers credential/text updates with **200** and the secret (`SecretsSafeBroker.PutAsync` / `PutTextAsync` read it back after the service's 204), which is what the library expects, although the Swagger documents 204. `totp_enabled` empty leaves TOTP unchanged, `false` turns it off.
 
 ### create_secret flow
-`main()` → `set_authentication()` → `get_folder()` → `create_secret()` → sign out
+`main()` → `get_totp_settings()` + `validate_api_version()` (before auth) → `set_authentication()` → `get_folder()` → `create_secret()` → sign out
 
 `get_folder()` lists all folders and matches by exact name. `create_secret()` handles three secret types (CREDENTIAL, TEXT, FILE) and optionally creates a file attachment before creating the secret record.
 
-### HTTP session config (both actions)
-```python
-Retry(total=3, backoff_factor=0.2, status_forcelist=[400, 408, 500, 502, 503, 504])
-# Timeouts: connect=30s, read=30s
-```
+### Shared helpers (beyondtrust-bips-library >= 3.6.0)
+The helpers every action needs live in the library, in `secrets_safe_library.integrations.github_actions.common_utils`; fix them there, not in the actions:
+- `tls.parse_verify_ca()`: `VERIFY_CA` is boolean only (true/false tokens; a CA bundle path fails the step). `api_client.authenticate()` passes it to `Authentication`, which sets `session.verify`
+- `outputs.mask_secret()` (`::add-mask ::value` per line, CR/LF-safe; the space before the second `::` is intentional), `outputs.append_output()` (`$GITHUB_OUTPUT` heredoc with a UUID delimiter)
+- `api_client.create_session(retry_status_codes)`: `Retry(total=3, backoff_factor=0.2, status_forcelist=[408, 429, 500, 502, 503, 504])` by default, on GET and POST (400 is not retried, so callers see it instead of a `RetryError`)
+- `api_client.authenticate()`: API key or OAuth, 30 s timeouts, fails the step unless sign-in returns 200
+- `common.show_error()`, `common.create_file()`
 
 ### Environment variable conventions
 - GitHub Actions inputs arrive as `INPUT_<NAME>` (uppercased)
@@ -101,7 +123,7 @@ Pre-commit hooks enforce Black, isort, Flake8, and Bandit — install with `pre-
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `linter.yml` | PR/push | Black, Flake8, isort, Bandit (all run even if one fails) |
-| `unit-tests.yml` | PR/push, tags `v*` | Runs both test suites, combines coverage, posts coverage report to PR via orgoro/coverage |
+| `unit-tests.yml` | PR/push, tags `v*` | Runs all four test suites, combines coverage, posts coverage report to PR via orgoro/coverage |
 | `wiz.yml` | PR/push | WIZ cloud security scan |
 
 ## Key Dependencies

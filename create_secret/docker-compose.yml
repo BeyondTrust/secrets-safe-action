@@ -30,4 +30,6 @@ services:
       - INPUT_NOTES=${INPUT_NOTES}
       - INPUT_OWNERS=${INPUT_OWNERS}
       - INPUT_URLS=${INPUT_URLS}
+      - INPUT_TOTP_ENABLED=${INPUT_TOTP_ENABLED}
+      - INPUT_TOTP_SECRET_KEY=${INPUT_TOTP_SECRET_KEY}
     container_name: create_secret_action

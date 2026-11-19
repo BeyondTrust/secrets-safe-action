@@ -12,20 +12,18 @@ This module is responsible for:
 import json
 import logging
 import os
-from typing import Any, Dict, Optional, Union
+import tempfile
+from typing import Any, Dict, Optional, Tuple
+from urllib.parse import parse_qs, urlsplit
 
 import requests
-import secrets_safe_library
-from requests.adapters import HTTPAdapter
-from secrets_safe_library import (
-    authentication,
-    exceptions,
-    folders,
-    secrets_safe,
-    utils,
+from secrets_safe_library import authentication, exceptions, folders, secrets_safe
+from secrets_safe_library.integrations.github_actions.common_utils import (
+    api_client,
+    common,
+    outputs,
+    tls,
 )
-from secrets_safe_library.integrations.github_actions.common_utils import common
-from urllib3.util.retry import Retry
 
 env = os.environ
 
@@ -34,10 +32,11 @@ API_KEY = env.get("API_KEY")
 CLIENT_ID = env.get("CLIENT_ID")
 CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
-API_VERSION = env.get("API_VERSION")
-# VERIFY_CA is resolved below, once the logger exists to report a bad value.
-TIMEOUT_CONNECTION_SECONDS = 30
-TIMEOUT_REQUEST_SECONDS = 30
+# Without a version, the library validator rejects every secret, so default
+# to 3.0 as documented in action.yml.
+API_VERSION = env.get("API_VERSION", "").strip() or "3.0"
+SUPPORTED_API_VERSIONS = ("3.0", "3.1", "3.2", "3.3")
+TOTP_API_VERSION = "3.3"
 CERTIFICATE = env.get("CERTIFICATE", "").replace(r"\n", "\n")
 CERTIFICATE_KEY = env.get("CERTIFICATE_KEY", "").replace(r"\n", "\n")
 
@@ -56,6 +55,9 @@ PASSWORD_RULE_ID = env.get("INPUT_PASSWORD_RULE_ID", "").strip()
 NOTES = env.get("INPUT_NOTES", "").strip()
 OWNERS = env.get("INPUT_OWNERS", "")
 URLS = env.get("INPUT_URLS", "")
+TOTP_ENABLED = env.get("INPUT_TOTP_ENABLED", "").strip()
+TOTP_SECRET_KEY = env.get("INPUT_TOTP_SECRET_KEY", "").strip()
+
 
 LOG_LEVEL = env.get("LOG_LEVEL", "INFO").strip().upper()
 
@@ -79,120 +81,146 @@ logging.basicConfig(
 
 logger = logging.getLogger(LOGGER_NAME)
 
-# Tokens that explicitly enable / disable TLS certificate verification.
-VERIFY_CA_TRUE_TOKENS = frozenset({"true", "1", "yes", "on", "enable", "enabled"})
-VERIFY_CA_FALSE_TOKENS = frozenset({"false", "0", "no", "off", "disable", "disabled"})
-
-
-def parse_verify_ca(value: Union[str, None]) -> Union[bool, str]:
-    """
-    Parse the VERIFY_CA environment variable.
-
-    Fails closed: verification is only disabled for an explicitly recognized
-    false token (false/0/no/off/disable/disabled, case-insensitive). A value
-    that points to an existing file or directory is passed through as a CA
-    bundle path, and anything unrecognized raises rather than silently ignoring
-    the caller's intent.
-
-    Note that True verifies against the CA store the requests library defaults
-    to (certifi's bundled roots), which is *not* the operating system trust
-    store. To trust a private/internal CA, pass the bundle path here - the
-    bundle must exist inside the action container, where the workspace is
-    mounted at /github/workspace.
-
-    Args:
-        value (str | None): Raw VERIFY_CA value, None when unset.
-
-    Returns:
-        bool | str: True to verify against the default CA store, False to
-        disable verification, or a path to a CA bundle file/directory.
-
-    Raises:
-        EnvironmentError: If the value is neither a recognized token nor an
-        existing path.
-    """
-
-    if value is None:
-        return True
-
-    normalized = value.strip()
-
-    if not normalized:
-        return True
-
-    token = normalized.lower()
-
-    if token in VERIFY_CA_TRUE_TOKENS:
-        return True
-
-    if token in VERIFY_CA_FALSE_TOKENS:
-        return False
-
-    # Allow pinning a custom CA bundle file or directory by path.
-    if os.path.exists(normalized):
-        return normalized
-
-    raise EnvironmentError(
-        f"Invalid value for VERIFY_CA: {value!r}. Use 'true'/'false' or a path "
-        "to an existing CA bundle inside the action container (the repository "
-        "workspace is mounted at /github/workspace). Refusing to continue "
-        "rather than silently ignoring the requested CA bundle."
-    )
-
-
-def configure_certificate_verification(
-    session: requests.Session, verify_ca: Union[bool, str]
-) -> None:
-    """
-    Apply the CA verification setting to the session and log the trust store
-    that is actually in effect.
-
-    The bundle path is assigned here so the session is correct on its own,
-    independent of the Authentication object also assigning it.
-
-    Args:
-        session (requests.Session): Session used for every API call.
-        verify_ca (bool | str): True to verify against the CA store requests
-            defaults to (certifi's bundled roots, *not* the operating system
-            trust store), False to disable verification, or a path to a CA
-            bundle file/directory to verify against instead.
-    """
-
-    session.verify = verify_ca
-
-    if verify_ca is False:
-        # The library already warns that disabling verification is insecure.
-        return
-
-    if isinstance(verify_ca, str):
-        utils.print_log(
-            logger,
-            f"Verifying certificates against CA bundle: {verify_ca}",
-            logging.INFO,
-        )
-        return
-
-    # requests swaps in REQUESTS_CA_BUNDLE/CURL_CA_BUNDLE at request time when
-    # verify is True, so report the store that is actually in effect.
-    ca_store = f"certifi: {requests.adapters.DEFAULT_CA_BUNDLE_PATH}"
-    for env_var in ("REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE"):
-        if env.get(env_var):
-            ca_store = f"overridden by {env_var}: {env[env_var]}"
-            break
-
-    utils.print_log(
-        logger,
-        "Verifying certificates against the CA store used by requests "
-        f"({ca_store}). Set VERIFY_CA to a CA bundle path to trust a private "
-        "CA instead.",
-        logging.INFO,
-    )
-
-
 try:
-    VERIFY_CA = parse_verify_ca(env.get("VERIFY_CA"))
+    VERIFY_CA = tls.parse_verify_ca(env.get("VERIFY_CA"))
 except EnvironmentError as verify_ca_error:
     common.show_error(str(verify_ca_error), logger)
+
+
+def mask_sensitive_inputs() -> None:
+    """
+    Mask the password and TOTP seed inputs before anything else is logged.
+
+    When the seed is an otpauth:// URI, the seed carried in its "secret" query
+    parameter is masked on its own too, so it stays hidden if it is ever
+    printed without the rest of the URI.
+    """
+
+    for value in (PASSWORD, TEXT, FILE_CONTENT, TOTP_SECRET_KEY):
+        if value:
+            outputs.mask_secret(value)
+
+    if TOTP_SECRET_KEY.lower().startswith("otpauth://"):
+        query = parse_qs(urlsplit(TOTP_SECRET_KEY).query)
+        for seed in query.get("secret", []):
+            outputs.mask_secret(seed)
+
+
+def parse_optional_bool(value: str, input_name: str) -> Optional[bool]:
+    """
+    Parse an optional boolean action input.
+
+    Args:
+        value (str): Raw input value.
+        input_name (str): Input name, used in the error message.
+
+    Returns:
+        Optional[bool]: None when the input is empty (omitted), otherwise True
+        or False for "true" or "false" (case-insensitive). Any other value
+        fails the step.
+    """
+
+    if not value:
+        return None
+
+    normalized = value.lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+
+    common.show_error(
+        f"Invalid value for {input_name}: {value!r}. Use 'true', 'false', or "
+        "leave it empty.",
+        logger,
+    )
+
+
+def get_totp_settings() -> Tuple[Optional[bool], Optional[str]]:
+    """
+    Parse and validate the TOTP inputs.
+
+    TOTP is only available for credential secrets. A seed is required when
+    totp_enabled is true and is rejected otherwise, matching the server rules.
+    Error messages never include the seed.
+
+    Returns:
+        Tuple[Optional[bool], Optional[str]]: (totp_enabled, totp_secret_key),
+        with None for each input that was left empty.
+    """
+
+    totp_enabled = parse_optional_bool(TOTP_ENABLED, "totp_enabled")
+    totp_secret_key = TOTP_SECRET_KEY or None
+
+    if totp_enabled is None and totp_secret_key is None:
+        return None, None
+
+    if not USERNAME:
+        common.show_error(
+            "totp_enabled and totp_secret_key are only supported for credential "
+            "secrets. Set username (and password) to create a credential secret.",
+            logger,
+        )
+
+    if totp_enabled and not totp_secret_key:
+        common.show_error(
+            "totp_secret_key is required when totp_enabled is 'true'.", logger
+        )
+
+    if totp_secret_key and not totp_enabled:
+        common.show_error(
+            "totp_secret_key is only allowed when totp_enabled is 'true'.", logger
+        )
+
+    return totp_enabled, totp_secret_key
+
+
+def validate_api_version(totp_enabled: Optional[bool]) -> None:
+    """
+    Fail the step unless api_version is supported, and unless it is 3.3 when
+    TOTP is set. Checked before signing in, so bad input fails fast.
+
+    Args:
+        totp_enabled (Optional[bool]): The totp_enabled setting; None omits
+            TOTP from the request.
+    """
+
+    if API_VERSION not in SUPPORTED_API_VERSIONS:
+        common.show_error(
+            f"Unsupported api_version {API_VERSION!r}. Use one of "
+            f"{', '.join(SUPPORTED_API_VERSIONS)}.",
+            logger,
+        )
+
+    if totp_enabled is not None and API_VERSION != TOTP_API_VERSION:
+        common.show_error(
+            f"totp_enabled requires api_version {TOTP_API_VERSION} "
+            f"(got {API_VERSION}).",
+            logger,
+        )
+
+
+def write_secret_file(temp_dir: str) -> str:
+    """
+    Write the file_content input to file_name inside temp_dir.
+
+    The library's base_dir guard fails the step if file_name escapes
+    temp_dir (for example "../x"). The uploaded file name is the base name of
+    the path, so it is file_name as given.
+
+    Args:
+        temp_dir (str): The temporary directory to write the file to.
+
+    Returns:
+        str: The path of the written file.
+    """
+
+    try:
+        common.create_file(FILE_NAME, FILE_CONTENT, logger, base_dir=temp_dir)
+    except ValueError as e:
+        common.show_error(f"Invalid file_name {FILE_NAME!r}: {e}", logger)
+
+    return os.path.join(temp_dir, FILE_NAME)
 
 
 def get_folder(
@@ -241,6 +269,8 @@ def parse_json_parameters():
 
 def create_secret(
     authentication_obj: authentication.Authentication,
+    totp_enabled: Optional[bool] = None,
+    totp_secret_key: Optional[str] = None,
 ) -> None:
     """
     Create a secret in Secrets Safe.
@@ -252,6 +282,10 @@ def create_secret(
     Args:
         authentication_obj (authentication.Authentication): Authenticated
             Secrets Safe client instance.
+        totp_enabled (Optional[bool]): Enables TOTP on a credential secret
+            (API version 3.3). None omits it from the request.
+        totp_secret_key (Optional[str]): TOTP seed, as Base32 or an otpauth://
+            URI. None omits it from the request.
     """
     # instantiate folders obj
     folders_obj = folders.Folder(authentication=authentication_obj, logger=logger)
@@ -270,28 +304,58 @@ def create_secret(
         logger=logger,
     )
 
-    # creating file if file content is provided
-    if FILE_CONTENT and FILE_NAME:
-        common.create_file(FILE_NAME, FILE_CONTENT, logger)
+    # The file content goes to a private temporary directory outside the runner
+    # workspace, which is removed when the secret is created, on failures too.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_path = (
+            write_secret_file(temp_dir) if FILE_CONTENT and FILE_NAME else FILE_NAME
+        )
+        send_create(
+            secrets_safe_obj,
+            folder["Id"],
+            file_path,
+            (totp_enabled, totp_secret_key),
+        )
+
+
+def send_create(
+    secrets_safe_obj: secrets_safe.SecretsSafe,
+    folder_id: str,
+    file_path: str,
+    totp: Tuple[Optional[bool], Optional[str]],
+) -> None:
+    """
+    Send the create request and fail the step on any library error.
+
+    Args:
+        secrets_safe_obj (SecretsSafe): Secrets Safe client.
+        folder_id (str): The parent folder ID.
+        file_path (str): Where the file content was written, for a file secret.
+        totp (Tuple[Optional[bool], Optional[str]]): (totp_enabled,
+            totp_secret_key).
+    """
 
     owners_list, urls_list = parse_json_parameters()
+    totp_enabled, totp_secret_key = totp
 
     try:
         # creating secret
         secrets_safe_obj.create_secret(
             title=TITLE,
-            folder_id=folder["Id"],
+            folder_id=folder_id,
             description=DESCRIPTION,
             username=USERNAME,
             password=PASSWORD,
             text=TEXT,
-            file_path=FILE_NAME,
+            file_path=file_path,
             owner_id=int(OWNER_ID) if OWNER_ID else None,
             owner_type=OWNER_TYPE,
             owners=owners_list,
             password_rule_id=int(PASSWORD_RULE_ID) if PASSWORD_RULE_ID else None,
             notes=NOTES,
             urls=urls_list,
+            totp_enabled=totp_enabled,
+            totp_secret_key=totp_secret_key,
         )
 
         logger.info("Secret created successfully")
@@ -322,51 +386,21 @@ def set_authentication(
         authentication.Authentication: Authenticated Secrets Safe client.
     """
 
-    configure_certificate_verification(session, VERIFY_CA)
-
-    certificate, certificate_key = utils.prepare_certificate_info(
-        CERTIFICATE, CERTIFICATE_KEY
-    )
-
-    auth_config = {
-        "req": session,
-        "timeout_connection": TIMEOUT_CONNECTION_SECONDS,
-        "timeout_request": TIMEOUT_REQUEST_SECONDS,
-        "api_url": API_URL,
-        "certificate": certificate,
-        "certificate_key": certificate_key,
-        "verify_ca": VERIFY_CA,
-        "logger": logger,
-    }
-
-    # The recommended version is 3.1. If no version is specified,
-    # the default API version 3.0 will be used
-    if API_VERSION:
-        auth_config.update({"api_version": API_VERSION})
-
-    # If API_KEY is set, we're using API Key authentication
-    # otherwise we're using OAuth/Client Credentials.
-    if API_KEY:
-        auth_config.update({"api_key": API_KEY})
-    else:
-        auth_config.update({"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET})
-
-    authentication_obj = authentication.Authentication(**auth_config)
-    get_api_access_response = authentication_obj.get_api_access()
-
-    utils.print_log(
+    # The recommended version is 3.1 (3.3 is required for TOTP). If no version
+    # is specified, the default API version 3.0 will be used. If API_KEY is
+    # set, API Key authentication is used, otherwise OAuth/Client Credentials.
+    return api_client.authenticate(
+        session,
         logger,
-        f"{secrets_safe_library.__library_name__} "
-        f"version: {secrets_safe_library.__version__}",
-        logging.DEBUG,
+        api_url=API_URL,
+        verify_ca=VERIFY_CA,
+        api_key=API_KEY,
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
+        certificate=CERTIFICATE,
+        certificate_key=CERTIFICATE_KEY,
+        api_version=API_VERSION,
     )
-    if get_api_access_response.status_code != 200:
-        error_message = (
-            f"Please check credentials, error {get_api_access_response.text}"
-        )
-        common.show_error(error_message, logger)
-
-    return authentication_obj
 
 
 def main() -> None:
@@ -376,21 +410,21 @@ def main() -> None:
     Orchestrates the workflow to authenticate, create a secret,
     and properly close the API session.
     """
-    try:
-        with requests.Session() as session:
-            retry_strategy = Retry(
-                total=3,
-                backoff_factor=0.2,
-                status_forcelist=[400, 408, 500, 502, 503, 504],
-                allowed_methods=["GET", "POST"],
-            )
-            adapter = HTTPAdapter(max_retries=retry_strategy)
-            session.mount("https://", adapter)
-            session.mount("http://", adapter)
+    mask_sensitive_inputs()
+    # Validate the TOTP inputs and the API version before authenticating, so
+    # bad input fails fast.
+    totp_enabled, totp_secret_key = get_totp_settings()
+    validate_api_version(totp_enabled)
 
+    try:
+        with api_client.create_session() as session:
             authentication_obj = set_authentication(session)
-            create_secret(authentication_obj)
-            authentication_obj.sign_app_out()
+            # Sign out on failures too (show_error exits with SystemExit), so
+            # the API session isn't left open until it expires.
+            try:
+                create_secret(authentication_obj, totp_enabled, totp_secret_key)
+            finally:
+                authentication_obj.sign_app_out()
 
     except Exception as e:
         common.show_error(f"An unexpected error occurred: {e}", logger)
