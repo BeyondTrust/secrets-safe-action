@@ -3,8 +3,8 @@ import os
 import unittest
 from unittest.mock import ANY, MagicMock, patch
 
-from secrets_safe_library.exceptions import CreationError, OptionsError
 import src.main as main_module
+from secrets_safe_library.exceptions import CreationError, OptionsError
 from src.main import (
     create_secret,
     get_folder,
