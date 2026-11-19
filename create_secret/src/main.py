@@ -12,6 +12,7 @@ This module is responsible for:
 import json
 import logging
 import os
+import tempfile
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlsplit
 
@@ -31,7 +32,11 @@ API_KEY = env.get("API_KEY")
 CLIENT_ID = env.get("CLIENT_ID")
 CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
-API_VERSION = env.get("API_VERSION")
+# Without a version, the library validator rejects every secret, so default
+# to 3.0 as documented in action.yml.
+API_VERSION = env.get("API_VERSION", "").strip() or "3.0"
+SUPPORTED_API_VERSIONS = ("3.0", "3.1", "3.2", "3.3")
+TOTP_API_VERSION = "3.3"
 CERTIFICATE = env.get("CERTIFICATE", "").replace(r"\n", "\n")
 CERTIFICATE_KEY = env.get("CERTIFICATE_KEY", "").replace(r"\n", "\n")
 
@@ -91,7 +96,7 @@ def mask_sensitive_inputs() -> None:
     printed without the rest of the URI.
     """
 
-    for value in (PASSWORD, TOTP_SECRET_KEY):
+    for value in (PASSWORD, TEXT, FILE_CONTENT, TOTP_SECRET_KEY):
         if value:
             outputs.mask_secret(value)
 
@@ -168,6 +173,54 @@ def get_totp_settings() -> Tuple[Optional[bool], Optional[str]]:
         )
 
     return totp_enabled, totp_secret_key
+
+
+def validate_api_version(totp_enabled: Optional[bool]) -> None:
+    """
+    Fail the step unless api_version is supported, and unless it is 3.3 when
+    TOTP is set. Checked before signing in, so bad input fails fast.
+
+    Args:
+        totp_enabled (Optional[bool]): The totp_enabled setting; None omits
+            TOTP from the request.
+    """
+
+    if API_VERSION not in SUPPORTED_API_VERSIONS:
+        common.show_error(
+            f"Unsupported api_version {API_VERSION!r}. Use one of "
+            f"{', '.join(SUPPORTED_API_VERSIONS)}.",
+            logger,
+        )
+
+    if totp_enabled is not None and API_VERSION != TOTP_API_VERSION:
+        common.show_error(
+            f"totp_enabled requires api_version {TOTP_API_VERSION} "
+            f"(got {API_VERSION}).",
+            logger,
+        )
+
+
+def write_secret_file(temp_dir: str) -> str:
+    """
+    Write the file_content input to file_name inside temp_dir.
+
+    The library's base_dir guard fails the step if file_name escapes
+    temp_dir (for example "../x"). The uploaded file name is the base name of
+    the path, so it is file_name as given.
+
+    Args:
+        temp_dir (str): The temporary directory to write the file to.
+
+    Returns:
+        str: The path of the written file.
+    """
+
+    try:
+        common.create_file(FILE_NAME, FILE_CONTENT, logger, base_dir=temp_dir)
+    except ValueError as e:
+        common.show_error(f"Invalid file_name {FILE_NAME!r}: {e}", logger)
+
+    return os.path.join(temp_dir, FILE_NAME)
 
 
 def get_folder(
@@ -251,22 +304,50 @@ def create_secret(
         logger=logger,
     )
 
-    # creating file if file content is provided
-    if FILE_CONTENT and FILE_NAME:
-        common.create_file(FILE_NAME, FILE_CONTENT, logger)
+    # The file content goes to a private temporary directory outside the runner
+    # workspace, which is removed when the secret is created, on failures too.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_path = (
+            write_secret_file(temp_dir) if FILE_CONTENT and FILE_NAME else FILE_NAME
+        )
+        send_create(
+            secrets_safe_obj,
+            folder["Id"],
+            file_path,
+            (totp_enabled, totp_secret_key),
+        )
+
+
+def send_create(
+    secrets_safe_obj: secrets_safe.SecretsSafe,
+    folder_id: str,
+    file_path: str,
+    totp: Tuple[Optional[bool], Optional[str]],
+) -> None:
+    """
+    Send the create request and fail the step on any library error.
+
+    Args:
+        secrets_safe_obj (SecretsSafe): Secrets Safe client.
+        folder_id (str): The parent folder ID.
+        file_path (str): Where the file content was written, for a file secret.
+        totp (Tuple[Optional[bool], Optional[str]]): (totp_enabled,
+            totp_secret_key).
+    """
 
     owners_list, urls_list = parse_json_parameters()
+    totp_enabled, totp_secret_key = totp
 
     try:
         # creating secret
         secrets_safe_obj.create_secret(
             title=TITLE,
-            folder_id=folder["Id"],
+            folder_id=folder_id,
             description=DESCRIPTION,
             username=USERNAME,
             password=PASSWORD,
             text=TEXT,
-            file_path=FILE_NAME,
+            file_path=file_path,
             owner_id=int(OWNER_ID) if OWNER_ID else None,
             owner_type=OWNER_TYPE,
             owners=owners_list,
@@ -330,8 +411,10 @@ def main() -> None:
     and properly close the API session.
     """
     mask_sensitive_inputs()
-    # Validate TOTP inputs before authenticating, so bad input fails fast.
+    # Validate the TOTP inputs and the API version before authenticating, so
+    # bad input fails fast.
     totp_enabled, totp_secret_key = get_totp_settings()
+    validate_api_version(totp_enabled)
 
     try:
         with api_client.create_session() as session:

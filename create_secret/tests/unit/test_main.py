@@ -1,7 +1,10 @@
+import importlib
+import os
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from secrets_safe_library.exceptions import CreationError, OptionsError
+import src.main as main_module
 from src.main import (
     create_secret,
     get_folder,
@@ -10,6 +13,7 @@ from src.main import (
     mask_sensitive_inputs,
     parse_optional_bool,
     set_authentication,
+    validate_api_version,
 )
 
 
@@ -179,6 +183,13 @@ class TestMain(unittest.TestCase):
         mock_get_folder.return_value = mock_folder
 
         mock_secrets_safe_obj = mock_secrets_safe_class.return_value
+        seen = {}
+
+        def read_file(**kwargs):
+            with open(kwargs["file_path"], encoding="utf-8") as f:
+                seen["content"] = f.read()
+
+        mock_secrets_safe_obj.create_secret.side_effect = read_file
 
         with patch("src.main.TITLE", "TestSecret"), patch(
             "src.main.PARENT_FOLDER_NAME", "TestFolder"
@@ -190,6 +201,13 @@ class TestMain(unittest.TestCase):
 
             create_secret(mock_auth)
 
+        # The file is written to a temporary directory outside the workspace,
+        # uploaded under file_name, and removed afterwards.
+        file_path = mock_secrets_safe_obj.create_secret.call_args.kwargs["file_path"]
+        self.assertEqual(seen["content"], "secret content")
+        self.assertEqual(os.path.basename(file_path), "secret.txt")
+        self.assertNotEqual(os.path.dirname(file_path), os.getcwd())
+        self.assertFalse(os.path.exists(file_path))
         mock_secrets_safe_obj.create_secret.assert_called_once_with(
             title="TestSecret",
             folder_id=123,
@@ -197,7 +215,7 @@ class TestMain(unittest.TestCase):
             username="",
             password="",
             text="",
-            file_path="secret.txt",
+            file_path=ANY,
             owner_id=None,
             owner_type="",
             owners=None,
@@ -314,6 +332,8 @@ class TestMain(unittest.TestCase):
         with patch("src.main.USERNAME", "user"), patch(
             "src.main.TOTP_ENABLED", "true"
         ), patch("src.main.TOTP_SECRET_KEY", "JBSWY3DPEHPK3PXP"), patch(
+            "src.main.API_VERSION", "3.3"
+        ), patch(
             "builtins.print"
         ):
             main()
@@ -354,6 +374,8 @@ class TestMain(unittest.TestCase):
         ), patch("src.main.TOTP_ENABLED", "true"), patch(
             "src.main.TOTP_SECRET_KEY", "JBSWY3DPEHPK3PXP"
         ), patch(
+            "src.main.API_VERSION", "3.3"
+        ), patch(
             "builtins.print", side_effect=lambda line: events.append(line)
         ):
             main()
@@ -362,6 +384,68 @@ class TestMain(unittest.TestCase):
             events,
             ["::add-mask ::p4ss", "::add-mask ::JBSWY3DPEHPK3PXP", "auth"],
         )
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    @patch("src.main.secrets_safe.SecretsSafe", autospec=True)
+    @patch("src.main.get_folder", return_value={"Id": 123, "Name": "TestFolder"})
+    @patch("src.main.folders.Folder", autospec=True)
+    def test_create_secret_rejects_file_name_outside_temp_dir(
+        self, _mock_folder, _mock_get_folder, mock_secrets_safe_class, mock_show_error
+    ):
+        """A file_name that escapes the temporary directory fails the step."""
+        with patch("src.main.FILE_CONTENT", "c"), patch(
+            "src.main.FILE_NAME", "../secret.txt"
+        ), self.assertRaises(SystemExit):
+            create_secret(MagicMock())
+
+        self.assertIn("Invalid file_name", mock_show_error.call_args[0][0])
+        mock_secrets_safe_class.return_value.create_secret.assert_not_called()
+
+
+class TestApiVersion(unittest.TestCase):
+    """Tests for the api_version default and validate_api_version."""
+
+    def test_empty_api_version_defaults_to_3_0(self):
+        self.addCleanup(importlib.reload, main_module)
+        with patch.dict(os.environ, {"API_VERSION": ""}):
+            importlib.reload(main_module)
+        self.assertEqual(main_module.API_VERSION, "3.0")
+
+    def test_supported_versions_are_accepted(self):
+        for version in ("3.0", "3.1", "3.2", "3.3"):
+            with self.subTest(version=version), patch("src.main.API_VERSION", version):
+                validate_api_version(None)
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_rejected_versions(self, mock_show_error):
+        cases = (
+            ("2.0", None, "Unsupported api_version"),
+            ("3.1", True, "totp_enabled requires api_version 3.3"),
+            ("3.0", False, "totp_enabled requires api_version 3.3"),
+        )
+        for version, totp_enabled, message in cases:
+            with self.subTest(version=version), patch("src.main.API_VERSION", version):
+                with self.assertRaises(SystemExit):
+                    validate_api_version(totp_enabled)
+                self.assertIn(message, mock_show_error.call_args[0][0])
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    @patch("src.main.set_authentication")
+    def test_main_rejects_totp_below_3_3_before_authenticating(
+        self, mock_set_authentication, mock_show_error
+    ):
+        with patch("src.main.USERNAME", "user"), patch(
+            "src.main.TOTP_ENABLED", "true"
+        ), patch("src.main.TOTP_SECRET_KEY", "JBSWY3DPEHPK3PXP"), patch(
+            "src.main.API_VERSION", "3.0"
+        ), patch(
+            "builtins.print"
+        ), self.assertRaises(
+            SystemExit
+        ):
+            main()
+
+        mock_set_authentication.assert_not_called()
 
 
 class TestParseOptionalBool(unittest.TestCase):
@@ -449,7 +533,19 @@ class TestGetTotpSettings(unittest.TestCase):
 
 
 class TestMasking(unittest.TestCase):
-    """Tests for masking the password and TOTP seed inputs."""
+    """Tests for masking the password, text, file content and TOTP inputs."""
+
+    @patch("builtins.print")
+    def test_text_and_file_content_are_masked(self, mock_print):
+        with patch("src.main.PASSWORD", ""), patch("src.main.TEXT", "t3xt"), patch(
+            "src.main.FILE_CONTENT", "f1le"
+        ), patch("src.main.TOTP_SECRET_KEY", ""):
+            mask_sensitive_inputs()
+
+        self.assertEqual(
+            [c.args[0] for c in mock_print.call_args_list],
+            ["::add-mask ::t3xt", "::add-mask ::f1le"],
+        )
 
     @patch("builtins.print")
     def test_nothing_masked_when_inputs_empty(self, mock_print):

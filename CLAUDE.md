@@ -71,7 +71,9 @@ All four actions support two mutually exclusive auth methods, through the librar
 1. **API Key** — `API_KEY` env var, optionally with `CERTIFICATE` + `CERTIFICATE_KEY`
 2. **OAuth Client Credentials** — `CLIENT_ID` + `CLIENT_SECRET` env vars
 
-They validate API access (expects HTTP 200), configure certificates if provided, and set the API version: default 3.0 (recommended 3.1) for `get_secret`, `create_secret` and `update_secret`, default 3.3 for `get_totp_code`. TOTP needs 3.3.
+They validate API access (expects HTTP 200), configure certificates if provided, and set the API version: default 3.0 (recommended 3.1) for `get_secret`, `create_secret` and `update_secret`, default 3.3 for `get_totp_code`. TOTP needs 3.3. `create_secret` and `update_secret` must default `API_VERSION` themselves: the library's secrets validator raises `Unsupported version: None` without one. They check the version (and 3.3 for TOTP) before signing in.
+
+File secret content is written with `common.create_file(..., base_dir=<TemporaryDirectory>)` (outside the runner workspace, path-traversal guarded, removed after the call), and `TEXT` / `FILE_CONTENT` are masked like the password.
 
 ### get_secret flow
 `main()` → `api_client.authenticate()` (inline in `main()`) → `get_secrets()` → sign out
@@ -84,12 +86,12 @@ They validate API access (expects HTTP 200), configure certificates if provided,
 Input `secret_id` is one secret GUID; the masked code is written to the fixed output `totp_code` (one step per secret), and the response's `ValidFromUtc` / `ValidToUtc` to `valid_from_utc` / `valid_to_utc` (unmasked, `""` when absent). Calls `SecretsSafe.get_secret_totp_code()`; catches `SecretTypeNotSupportedError` (400) and `TotpNotEnabledError` (404) before `LookupError`. `api_version` defaults to `3.3`. The library's default session does not retry 400, so the 400 reaches the library instead of becoming a `RetryError`.
 
 ### update_secret flow
-`main()` → `validate_inputs()` (GUID, one content type, TOTP, integers, JSON — all before auth) → `set_authentication()` → `update_secret()` (`get_secret_to_update()` → `build_update_kwargs()` → PUT) → sign out
+`main()` → `validate_inputs()` (GUID normalized to canonical form, one content type, TOTP, API version, integers, JSON — all before auth) → `set_authentication()` → `update_secret()` (`get_secret_to_update()` → `build_update_kwargs()` → PUT) → sign out
 
-Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/text` or `/file`). Following ps-integration-cli `secrets update` (`_call_update_secret`), `build_update_kwargs()` sends every field as `input or existing value` read with `get_secret_by_id()`: title, description, owners, owner type/id, notes, URLs, password rule and the credential password. Only `username`, `text` and the file can't be read back, so they are required. `FolderId` is always the current one (the live API requires it, although the Swagger marks it read-only), so secrets are never moved. Owners read back use API names (`UserId`), which the library's validator rejects, so `to_library_owners()` converts them (`user_id`). As in the CLI, any `UpdateError` fails the step: the Public API answers credential/text updates with **200** and the secret (`SecretsSafeBroker.PutAsync` / `PutTextAsync` read it back after the service's 204), which is what the library expects, although the Swagger documents 204. `totp_enabled` empty leaves TOTP unchanged, `false` turns it off.
+Calls `SecretsSafe.update_secret()`, a full-replacement PUT (`/secrets/{id}`, `/text` or `/file`). Following ps-integration-cli `secrets update` (`_call_update_secret`), `build_update_kwargs()` sends every field as the input or, when it is omitted, the existing value read with `get_secret_by_id()` (parsed inputs use `keep_if_omitted()`, so an explicit `0` or `[]` is sent; empty text inputs can't clear a value): title, description, owners, owner type/id, notes, URLs, password rule and the credential password. Only `username`, `text` and the file can't be read back, so they are required. `FolderId` is always the current one (the live API requires it, although the Swagger marks it read-only), so secrets are never moved. Owners read back use API names (`UserId`), which the library's validator rejects, so `to_library_owners()` converts them (`user_id`). As in the CLI, any `UpdateError` fails the step: the Public API answers credential/text updates with **200** and the secret (`SecretsSafeBroker.PutAsync` / `PutTextAsync` read it back after the service's 204), which is what the library expects, although the Swagger documents 204. `totp_enabled` empty leaves TOTP unchanged, `false` turns it off.
 
 ### create_secret flow
-`main()` → `set_authentication()` → `get_folder()` → `create_secret()` → sign out
+`main()` → `get_totp_settings()` + `validate_api_version()` (before auth) → `set_authentication()` → `get_folder()` → `create_secret()` → sign out
 
 `get_folder()` lists all folders and matches by exact name. `create_secret()` handles three secret types (CREDENTIAL, TEXT, FILE) and optionally creates a file attachment before creating the secret record.
 

@@ -164,7 +164,7 @@ The action supports two authentication methods:
 | **client\_id<br>(optional)** | The API OAuth Client ID configured in BeyondInsight for your application. |
 | **client\_secret<br>(optional)** | The API OAuth Client Secret configured in BeyondInsight for your application. |
 | **api\_url (required)** | The API URL for the Secrets Safe instance.<br>`https://example.com:443/BeyondTrust/api/public/v3` |
-| **api\_version<br>(optional)** | Supported versions are 3.0, 3.1, 3.2 and 3.3. The recommended version is 3.1. If no version is specified, the default API version 3.0 is used. Use **3.3** to create TOTP-enabled credential secrets. |
+| **api\_version<br>(optional)** | Supported versions are 3.0, 3.1, 3.2 and 3.3. The recommended version is 3.1. If no version is specified, the default API version 3.0 is used. Any other value fails the step before signing in. Use **3.3** to create TOTP-enabled credential secrets. |
 | **verify\_ca<br>(optional)** | Indicates whether to verify the certificate authority on the Secrets Safe instance. Default value is **True**. Accepts **true** or **false** only, as for the get secret action. |
 | **certificate<br>(optional)** | Content of the certificate (cert.pem) for use when authenticating with an API key using a Client Certificate. |
 | **certificate\_key<br>(optional)** | Certificate private key (key.pem) for use when authenticating with an API key using a Client Certificate. |
@@ -196,7 +196,7 @@ The action supports two authentication methods:
 | Input value-File Secrets     | Description                                                        |
 | :--------------------------- | :----------------------------------------------------------------- |
 | **file\_content (optional)** | File content for file type secrets (base64 encoded or plain text). |
-| **file\_name (optional)**    | File name for file type secrets.                                   |
+| **file\_name (optional)**    | File name for file type secrets. The file is written to a temporary directory outside the workspace and deleted after the step. A name that points outside that directory, such as `../x`, fails the step. |
 
 ### Advanced Configuration Inputs
 
@@ -389,10 +389,10 @@ This action updates an existing credential, text or file secret, identified by i
 | **api\_key, client\_id, client\_secret, api\_url, api\_version, verify\_ca, certificate, certificate\_key, log\_level** | Same as for the create secret action. |
 | **secret\_id (required)** | ID (GUID) of the secret to update. |
 | **username** | Credential secrets: required. |
-| **password, password\_rule\_id (optional)** | Credential secrets: left empty, the current values are kept. |
+| **password, password\_rule\_id (optional)** | Credential secrets: left empty, the current values are kept. A **password\_rule\_id** of `0` is sent as given. |
 | **text** | Text secrets: required, because text content cannot be read back. |
 | **file\_name, file\_content** | File secrets: both required, because file content cannot be read back. |
-| **secret\_title, secret\_description, owners, owner\_id, owner\_type, notes, urls (optional)** | Same as for the create secret action. Left empty, the current value is kept. **owners** replaces the current owners when it is set. **urls** set to `[]` removes the current URLs. |
+| **secret\_title, secret\_description, owners, owner\_id, owner\_type, notes, urls (optional)** | Same as for the create secret action. Left empty, the current value is kept, so an empty **secret\_description** or **notes** can't clear the current one. **owners** replaces the current owners when it is set. **urls** set to `[]` removes the current URLs, and an **owner\_id** of `0` is sent as given. |
 | **totp\_enabled (optional)** | Credential secrets, **api\_version** 3.3: **true** sets or replaces the seed given in **totp\_secret\_key**, **false** turns TOTP off, and empty (the default) leaves the current TOTP setting unchanged. |
 | **totp\_secret\_key (optional)** | TOTP seed, as a Base32 string or an `otpauth://` URI (maximum 1024 characters). Required when **totp\_enabled** is **true**, and rejected otherwise. Masked in the logs. |
 

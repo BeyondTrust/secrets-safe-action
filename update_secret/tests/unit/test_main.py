@@ -1,5 +1,7 @@
 """Unit tests for the Update Secret action"""
 
+import importlib
+import os
 import unittest
 from contextlib import ExitStack, contextmanager
 from unittest.mock import MagicMock, patch
@@ -52,6 +54,8 @@ def patch_inputs(stack: ExitStack, **inputs) -> None:
     """Patch the module-level input constants; unspecified inputs are empty."""
     defaults = {
         "SECRET_ID": "",
+        # The module default when the api_version input is empty.
+        "API_VERSION": "3.0",
         "TITLE": "",
         "DESCRIPTION": "",
         "USERNAME": "",
@@ -85,6 +89,7 @@ class InputsTestCase(unittest.TestCase):
 def settings(secret_type=main.CREDENTIAL, **overrides):
     """Return validate_inputs()-style settings."""
     values = {
+        "secret_id": SECRET_ID,
         "secret_type": secret_type,
         "owners": OWNERS,
         "urls": None,
@@ -157,7 +162,12 @@ class TestMain(InputsTestCase):
         """The password and seed are masked before anything else runs."""
         events = []
         mock_set_auth.side_effect = lambda _: events.append("auth") or MagicMock()
-        self.set_inputs(**CREDENTIAL_INPUTS, TOTP_ENABLED="true", TOTP_SECRET_KEY=SEED)
+        self.set_inputs(
+            **CREDENTIAL_INPUTS,
+            API_VERSION="3.3",
+            TOTP_ENABLED="true",
+            TOTP_SECRET_KEY=SEED,
+        )
 
         with patch("builtins.print", side_effect=events.append):
             main.main()
@@ -225,15 +235,27 @@ class TestValidateInputs(InputsTestCase):
                 self.assertEqual(validate_inputs(), settings(secret_type, owners=None))
 
     def test_credential_with_totp(self):
-        self.set_inputs(**CREDENTIAL_INPUTS, TOTP_ENABLED="true", TOTP_SECRET_KEY=SEED)
+        self.set_inputs(
+            **CREDENTIAL_INPUTS,
+            API_VERSION="3.3",
+            TOTP_ENABLED="true",
+            TOTP_SECRET_KEY=SEED,
+        )
         self.assertEqual(
             validate_inputs(), settings(totp_enabled=True, totp_secret_key=SEED)
         )
 
     def test_credential_disable_totp(self):
         """totp_enabled=false on its own turns TOTP off."""
-        self.set_inputs(**CREDENTIAL_INPUTS, TOTP_ENABLED="false")
+        self.set_inputs(**CREDENTIAL_INPUTS, API_VERSION="3.3", TOTP_ENABLED="false")
         self.assertEqual(validate_inputs(), settings(totp_enabled=False))
+
+    def test_secret_id_is_normalized(self):
+        """GUID variants that uuid.UUID() accepts are sent in canonical form."""
+        for raw in (f"urn:uuid:{SECRET_ID}", f"{{{SECRET_ID.upper()}}}"):
+            with self.subTest(raw=raw):
+                self.set_inputs(**{**CREDENTIAL_INPUTS, "SECRET_ID": raw})
+                self.assertEqual(validate_inputs()["secret_id"], SECRET_ID)
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_rejected_inputs(self, mock_show_error):
@@ -241,6 +263,11 @@ class TestValidateInputs(InputsTestCase):
         cases = (
             ({**CREDENTIAL_INPUTS, "SECRET_ID": ""}, "Invalid secret_id"),
             ({**CREDENTIAL_INPUTS, "SECRET_ID": "not-a-guid"}, "Invalid secret_id"),
+            ({**CREDENTIAL_INPUTS, "API_VERSION": "2.0"}, "Unsupported api_version"),
+            (
+                {**CREDENTIAL_INPUTS, "TOTP_ENABLED": "false"},
+                "totp_enabled requires api_version 3.3",
+            ),
             ({**CREDENTIAL_INPUTS, "OWNER_ID": "abc"}, "owner_id"),
             ({**CREDENTIAL_INPUTS, "PASSWORD_RULE_ID": "1.5"}, "password_rule_id"),
             ({**CREDENTIAL_INPUTS, "OWNERS": "{bad"}, "Invalid JSON format for owners"),
@@ -298,7 +325,7 @@ class TestSmallParsers(InputsTestCase):
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_validate_secret_id(self, mock_show_error):
-        validate_secret_id(SECRET_ID)
+        self.assertEqual(validate_secret_id(SECRET_ID.upper()), SECRET_ID)
         mock_show_error.assert_not_called()
 
         with self.assertRaises(SystemExit):
@@ -390,15 +417,50 @@ class TestUpdateSecret(InputsTestCase):
         for key in ("username", "password", "password_rule_id", "file_path"):
             self.assertNotIn(key, kwargs)
 
-    @patch("src.main.common.create_file")
-    def test_file_update_writes_the_file_first(self, mock_create_file):
+    def test_file_update_writes_the_file_to_a_temp_dir(self):
+        """
+        The file is written outside the workspace, uploaded under file_name,
+        and removed after the update.
+        """
         self.set_inputs(**BASE_INPUTS, FILE_NAME="f.txt", FILE_CONTENT="c")
+        seen = {}
 
-        kwargs = self._update(main.FILE_TYPE)
+        def read_file(**kwargs):
+            with open(kwargs["file_path"], encoding="utf-8") as f:
+                seen["content"] = f.read()
 
-        mock_create_file.assert_called_once_with("f.txt", "c", main.logger)
-        self.assertEqual(kwargs["file_path"], "f.txt")
+        with mocked_sdk(main.FILE_TYPE) as sdk:
+            sdk.return_value.update_secret.side_effect = read_file
+            update_secret(MagicMock(), settings(main.FILE_TYPE))
+
+        kwargs = sdk.return_value.update_secret.call_args.kwargs
+        self.assertEqual(seen["content"], "c")
+        self.assertEqual(os.path.basename(kwargs["file_path"]), "f.txt")
+        self.assertNotEqual(os.path.dirname(kwargs["file_path"]), os.getcwd())
+        self.assertFalse(os.path.exists(kwargs["file_path"]))
         self.assertNotIn("text", kwargs)
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_file_name_cannot_escape_the_temp_dir(self, mock_show_error):
+        self.set_inputs(**BASE_INPUTS, FILE_NAME="../f.txt", FILE_CONTENT="c")
+
+        with mocked_sdk(main.FILE_TYPE) as sdk, self.assertRaises(SystemExit):
+            update_secret(MagicMock(), settings(main.FILE_TYPE))
+
+        self.assertIn("Invalid file_name", mock_show_error.call_args[0][0])
+        sdk.return_value.update_secret.assert_not_called()
+
+    @patch("src.main.common.show_error")
+    def test_explicit_zero_ids_are_sent(self, mock_show_error):
+        """owner_id and password_rule_id 0 are sent, not the current values."""
+        self.set_inputs(**CREDENTIAL_INPUTS)
+
+        with mocked_sdk(existing=EXISTING_CREDENTIAL) as sdk, patch("builtins.print"):
+            update_secret(MagicMock(), settings(owner_id=0, password_rule_id=0))
+
+        kwargs = sdk.return_value.update_secret.call_args.kwargs
+        self.assertEqual(kwargs["owner_id"], 0)
+        self.assertEqual(kwargs["password_rule_id"], 0)
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_errors(self, mock_show_error):
@@ -661,6 +723,29 @@ class TestUpdateSecretWithLibrary(InputsTestCase):
         self.assertNotIn("TotpSecretKey", {k for k, v in body.items() if v})
 
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
+    def test_default_api_version_update_succeeds(self, mock_show_error):
+        """
+        With the default api_version (3.0), the library accepts the update,
+        including the owners read back in the 3.0 shape (OwnerId, Owner, Email).
+        """
+        self.set_inputs(SECRET_ID=SECRET_ID, USERNAME="user")
+        existing = {
+            **EXISTING_CREDENTIAL,
+            "Owners": [{"OwnerId": 7, "Owner": "admin", "Email": "admin@example.com"}],
+        }
+        auth = self._authentication(200, api_version="3.0", existing=existing)
+
+        with patch("builtins.print"):
+            update_secret(auth, settings(owners=None))
+
+        mock_show_error.assert_not_called()
+        self.assertIn("version=3.0", auth._req.put.call_args.kwargs["url"])
+        self.assertEqual(
+            auth._req.put.call_args.kwargs["json"]["Owners"],
+            [{"OwnerId": 7, "Owner": "admin", "Email": "admin@example.com"}],
+        )
+
+    @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_404_fails(self, mock_show_error):
         self.set_inputs(**CREDENTIAL_INPUTS)
         auth = self._authentication(404)
@@ -689,7 +774,9 @@ class TestMasking(InputsTestCase):
     @patch("builtins.print")
     def test_password_text_and_otpauth_seed_are_masked(self, mock_print):
         uri = f"otpauth://totp/Example:alice?secret={SEED}&issuer=Example"
-        self.set_inputs(PASSWORD="p4ss", TEXT="t3xt", TOTP_SECRET_KEY=uri)
+        self.set_inputs(
+            PASSWORD="p4ss", TEXT="t3xt", FILE_CONTENT="f1le", TOTP_SECRET_KEY=uri
+        )
 
         mask_sensitive_inputs()
 
@@ -698,6 +785,7 @@ class TestMasking(InputsTestCase):
             [
                 "::add-mask ::p4ss",
                 "::add-mask ::t3xt",
+                "::add-mask ::f1le",
                 f"::add-mask ::{uri}",
                 f"::add-mask ::{SEED}",
             ],
@@ -708,6 +796,16 @@ class TestMasking(InputsTestCase):
         self.set_inputs()
         mask_sensitive_inputs()
         mock_print.assert_not_called()
+
+
+class TestApiVersionDefault(unittest.TestCase):
+    """The api_version default, read when the module loads."""
+
+    def test_empty_api_version_defaults_to_3_0(self):
+        self.addCleanup(importlib.reload, main)
+        with patch.dict(os.environ, {"API_VERSION": ""}):
+            importlib.reload(main)
+        self.assertEqual(main.API_VERSION, "3.0")
 
 
 class TestAuthentication(InputsTestCase):

@@ -94,7 +94,7 @@ def validate_secret_id(secret_id: str | None) -> str:
         secret_id (str | None): Raw value of the secret_id input.
 
     Returns:
-        str: The secret ID.
+        str: The secret ID as a canonical GUID.
     """
 
     if not secret_id:
@@ -105,7 +105,9 @@ def validate_secret_id(secret_id: str | None) -> str:
             f"Invalid secret_id {repr(secret_id)}: must be a secret GUID", logger
         )
 
-    return secret_id
+    # Canonical form (lowercase, dashed), so variants that uuid.UUID() accepts,
+    # such as "urn:uuid:..." or "{...}", never reach the request path.
+    return str(uuid.UUID(secret_id))
 
 
 def get_totp_code(

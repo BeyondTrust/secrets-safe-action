@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 import uuid
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import parse_qs, urlsplit
@@ -42,7 +43,11 @@ API_KEY = env.get("API_KEY")
 CLIENT_ID = env.get("CLIENT_ID")
 CLIENT_SECRET = env.get("CLIENT_SECRET")
 API_URL = env.get("API_URL")
-API_VERSION = env.get("API_VERSION")
+# Without a version, the library validator rejects every update, so default
+# to 3.0 as documented in action.yml.
+API_VERSION = env.get("API_VERSION", "").strip() or "3.0"
+SUPPORTED_API_VERSIONS = ("3.0", "3.1", "3.2", "3.3")
+TOTP_API_VERSION = "3.3"
 CERTIFICATE = env.get("CERTIFICATE", "").replace(r"\n", "\n")
 CERTIFICATE_KEY = env.get("CERTIFICATE_KEY", "").replace(r"\n", "\n")
 
@@ -99,14 +104,15 @@ except EnvironmentError as verify_ca_error:
 
 def mask_sensitive_inputs() -> None:
     """
-    Mask the password, text and TOTP seed inputs before anything else is logged.
+    Mask the password, text, file content and TOTP seed inputs before anything
+    else is logged.
 
     When the seed is an otpauth:// URI, the seed carried in its "secret" query
     parameter is masked on its own too, so it stays hidden if it is ever
     printed without the rest of the URI.
     """
 
-    for value in (PASSWORD, TEXT, TOTP_SECRET_KEY):
+    for value in (PASSWORD, TEXT, FILE_CONTENT, TOTP_SECRET_KEY):
         if value:
             outputs.mask_secret(value)
 
@@ -171,17 +177,22 @@ def parse_optional_int(value: str, input_name: str) -> Optional[int]:
         )
 
 
-def validate_secret_id(secret_id: str) -> None:
+def validate_secret_id(secret_id: str) -> str:
     """
     Fail the step unless secret_id is a GUID. The value is placed in the
     request path, so anything else is rejected before a request is made.
 
     Args:
         secret_id (str): The secret_id input.
+
+    Returns:
+        str: The GUID in canonical form (lowercase, dashed), so variants that
+        uuid.UUID() accepts, such as "urn:uuid:..." or "{...}", never reach
+        the request path.
     """
 
     try:
-        uuid.UUID(secret_id)
+        return str(uuid.UUID(secret_id))
     except (TypeError, ValueError, AttributeError):
         common.show_error(
             f"Invalid secret_id {secret_id!r}: must be a secret GUID", logger
@@ -274,11 +285,12 @@ def validate_inputs() -> Dict[str, Any]:
     making any API call.
 
     Returns:
-        Dict[str, Any]: The checked settings: secret_type, owners, urls,
-        totp_enabled, totp_secret_key, owner_id and password_rule_id.
+        Dict[str, Any]: The checked settings: secret_id (canonical GUID),
+        secret_type, owners, urls, totp_enabled, totp_secret_key, owner_id and
+        password_rule_id.
     """
 
-    validate_secret_id(SECRET_ID)
+    secret_id = validate_secret_id(SECRET_ID)
 
     # Inputs left empty keep the secret's current values (see
     # build_update_kwargs), so only the content that can't be read back is
@@ -287,9 +299,12 @@ def validate_inputs() -> Dict[str, Any]:
 
     totp_enabled, totp_secret_key = get_totp_settings(secret_type)
 
+    validate_api_version(totp_enabled)
+
     owners_list, urls_list = parse_json_parameters()
 
     return {
+        "secret_id": secret_id,
         "secret_type": secret_type,
         "owners": owners_list,
         "urls": urls_list,
@@ -302,6 +317,32 @@ def validate_inputs() -> Dict[str, Any]:
             else None
         ),
     }
+
+
+def validate_api_version(totp_enabled: Optional[bool]) -> None:
+    """
+    Fail the step unless api_version is supported, and unless it is 3.3 when
+    TOTP is changed. Checked before signing in, so the secret is never read
+    for an update the library would reject.
+
+    Args:
+        totp_enabled (Optional[bool]): The totp_enabled setting; None leaves
+            TOTP unchanged.
+    """
+
+    if API_VERSION not in SUPPORTED_API_VERSIONS:
+        common.show_error(
+            f"Unsupported api_version {API_VERSION!r}. Use one of "
+            f"{', '.join(SUPPORTED_API_VERSIONS)}.",
+            logger,
+        )
+
+    if totp_enabled is not None and API_VERSION != TOTP_API_VERSION:
+        common.show_error(
+            f"totp_enabled requires api_version {TOTP_API_VERSION} "
+            f"(got {API_VERSION}).",
+            logger,
+        )
 
 
 def parse_json_parameters():
@@ -357,7 +398,7 @@ def parse_json_list(value: str, name: str, allow_empty: bool) -> Optional[list]:
 
 
 def get_secret_to_update(
-    secrets_safe_obj: secrets_safe.SecretsSafe, secret_type: str
+    secrets_safe_obj: secrets_safe.SecretsSafe, secret_id: str, secret_type: str
 ) -> Dict[str, Any]:
     """
     Get the secret being updated and check that it is of secret_type.
@@ -368,6 +409,7 @@ def get_secret_to_update(
 
     Args:
         secrets_safe_obj (SecretsSafe): Secrets Safe client.
+        secret_id (str): The secret GUID.
         secret_type (str): CREDENTIAL, TEXT_TYPE or FILE_TYPE.
 
     Returns:
@@ -375,10 +417,10 @@ def get_secret_to_update(
     """
 
     try:
-        secret_dict = secrets_safe_obj.get_secret_by_id(SECRET_ID)
+        secret_dict = secrets_safe_obj.get_secret_by_id(secret_id)
     except exceptions.LookupError as e:
         common.show_error(
-            f"Cannot read secret {SECRET_ID}: {e}. Check that the secret exists "
+            f"Cannot read secret {secret_id}: {e}. Check that the secret exists "
             "and that the application is allowed to read and edit it.",
             logger,
         )
@@ -386,7 +428,7 @@ def get_secret_to_update(
     current_type = str(secret_dict.get("SecretType") or "").lower()
     if current_type and current_type != secret_type:
         common.show_error(
-            f"Secret {SECRET_ID} is a {current_type} secret, but the inputs are "
+            f"Secret {secret_id} is a {current_type} secret, but the inputs are "
             f"for a {secret_type} secret. The type of a secret cannot change.",
             logger,
         )
@@ -427,8 +469,19 @@ def to_library_owners(owners: Optional[list]) -> Optional[list]:
     ]
 
 
+def keep_if_omitted(value: Any, current: Any) -> Any:
+    """
+    Return value, or current when the input was omitted (None). Unlike
+    "value or current", an explicit 0 or [] is kept.
+    """
+
+    return value if value is not None else current
+
+
 def build_update_kwargs(
-    settings: Dict[str, Any], secret_dict: Dict[str, Any]
+    settings: Dict[str, Any],
+    secret_dict: Dict[str, Any],
+    file_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Build the update_secret keyword arguments.
@@ -441,9 +494,16 @@ def build_update_kwargs(
     TOTP fields leaves TOTP unchanged. The folder is always kept: the API
     requires FolderId, and this action does not move secrets.
 
+    An empty action input can't be told apart from an omitted one, so empty
+    text inputs (title, description, notes, ...) keep the current value and
+    can't clear it. Parsed inputs (owner_id, password_rule_id, urls) keep it
+    only when omitted: an explicit 0 or [] is sent as given.
+
     Args:
         settings (Dict[str, Any]): The checked settings from validate_inputs().
         secret_dict (Dict[str, Any]): The existing secret.
+        file_path (Optional[str]): Where the file content was written, for a
+            file secret.
 
     Returns:
         Dict[str, Any]: The keyword arguments for SecretsSafe.update_secret().
@@ -455,31 +515,27 @@ def build_update_kwargs(
         content = {
             "username": USERNAME,
             "password": PASSWORD or secret_dict.get("Password"),
-            "password_rule_id": (
-                settings["password_rule_id"] or secret_dict.get("PasswordRuleID")
+            "password_rule_id": keep_if_omitted(
+                settings["password_rule_id"], secret_dict.get("PasswordRuleID")
             ),
         }
     elif secret_type == TEXT_TYPE:
         content = {"text": TEXT}
     else:
-        content = {"file_path": FILE_NAME}
+        content = {"file_path": file_path}
 
     return {
-        "secret_id": SECRET_ID,
+        "secret_id": settings["secret_id"],
         "folder_id": secret_dict.get("FolderId"),
         "title": TITLE or secret_dict.get("Title"),
         "description": DESCRIPTION or secret_dict.get("Description"),
         **content,
-        "owner_id": settings["owner_id"] or secret_dict.get("OwnerId"),
+        "owner_id": keep_if_omitted(settings["owner_id"], secret_dict.get("OwnerId")),
         "owner_type": OWNER_TYPE or secret_dict.get("OwnerType"),
         "owners": settings["owners"] or to_library_owners(secret_dict.get("Owners")),
         "notes": NOTES or secret_dict.get("Notes"),
         # An empty array clears the URLs; only an empty input keeps them.
-        "urls": (
-            settings["urls"]
-            if settings["urls"] is not None
-            else secret_dict.get("Urls")
-        ),
+        "urls": keep_if_omitted(settings["urls"], secret_dict.get("Urls")),
         "totp_enabled": settings["totp_enabled"],
         "totp_secret_key": settings["totp_secret_key"],
     }
@@ -513,26 +569,72 @@ def update_secret(
 
     logger.info("Updating secret")
 
-    secret_dict = get_secret_to_update(secrets_safe_obj, secret_type)
+    secret_id = settings["secret_id"]
+    secret_dict = get_secret_to_update(secrets_safe_obj, secret_id, secret_type)
 
     if not secret_dict.get("FolderId"):
         common.show_error(
-            f"Cannot update secret {SECRET_ID}: its folder ID was not returned.",
+            f"Cannot update secret {secret_id}: its folder ID was not returned.",
             logger,
         )
 
-    # creating file if the secret is a file secret
-    if secret_type == FILE_TYPE:
-        common.create_file(FILE_NAME, FILE_CONTENT, logger)
+    # The file content goes to a private temporary directory outside the runner
+    # workspace, which is removed when the update ends, on failures too.
+    with tempfile.TemporaryDirectory() as temp_dir:
+        file_path = write_secret_file(temp_dir) if secret_type == FILE_TYPE else None
+        send_update(
+            secrets_safe_obj,
+            build_update_kwargs(settings, secret_dict, file_path),
+            secret_type,
+        )
+
+
+def write_secret_file(temp_dir: str) -> str:
+    """
+    Write the file_content input to file_name inside temp_dir.
+
+    The library's base_dir guard fails the step if file_name escapes
+    temp_dir (for example "../x"). The uploaded file name is the base name of
+    the path, so it is file_name as given.
+
+    Args:
+        temp_dir (str): The temporary directory to write the file to.
+
+    Returns:
+        str: The path of the written file.
+    """
 
     try:
-        secrets_safe_obj.update_secret(**build_update_kwargs(settings, secret_dict))
+        common.create_file(FILE_NAME, FILE_CONTENT, logger, base_dir=temp_dir)
+    except ValueError as e:
+        common.show_error(f"Invalid file_name {FILE_NAME!r}: {e}", logger)
+
+    return os.path.join(temp_dir, FILE_NAME)
+
+
+def send_update(
+    secrets_safe_obj: secrets_safe.SecretsSafe,
+    update_kwargs: Dict[str, Any],
+    secret_type: str,
+) -> None:
+    """
+    Send the update and fail the step on any library error.
+
+    Args:
+        secrets_safe_obj (SecretsSafe): Secrets Safe client.
+        update_kwargs (Dict[str, Any]): From build_update_kwargs().
+        secret_type (str): CREDENTIAL, TEXT_TYPE or FILE_TYPE, for the error
+            message.
+    """
+
+    try:
+        secrets_safe_obj.update_secret(**update_kwargs)
 
         logger.info("Secret updated successfully")
     except exceptions.UpdateError as e:
         common.show_error(
-            f"Error updating secret {SECRET_ID}: {e}. Check that the secret "
-            f"exists, that it is a {secret_type} secret, and that the "
+            f"Error updating secret {update_kwargs['secret_id']}: {e}. Check that "
+            f"the secret exists, that it is a {secret_type} secret, and that the "
             "application is allowed to edit it.",
             logger,
         )

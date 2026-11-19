@@ -150,6 +150,16 @@ class TestValidateSecretId(unittest.TestCase):
         """A GUID is returned as is."""
         self.assertEqual(main.validate_secret_id(SECRET_ID), SECRET_ID)
 
+    def test_guid_is_normalized(self):
+        """GUID variants that uuid.UUID() accepts are returned in canonical form."""
+        for secret_id in (
+            f"urn:uuid:{SECRET_ID}",
+            f"{{{SECRET_ID.upper()}}}",
+            SECRET_ID.replace("-", ""),
+        ):
+            with self.subTest(secret_id=secret_id):
+                self.assertEqual(main.validate_secret_id(secret_id), SECRET_ID)
+
     @patch("src.main.common.show_error", side_effect=SystemExit(1))
     def test_empty_input_is_rejected(self, mock_show_error):
         """An empty input fails with "Nothing to do"."""
