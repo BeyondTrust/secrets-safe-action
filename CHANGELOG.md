@@ -1,5 +1,16 @@
 # Change Log
  
+### [2.1.0](https://github.com/BeyondTrust/secrets-safe-action/compare/v2.0.2...v2.1.0) / 2026-11-19
+
+#### Features
+
+* BIPS-34603 support CA bundle path in VERIFY_CA ([#68](https://github.com/BeyondTrust/secrets-safe-action/issues/68))
+* BIPS-43275 TOTP support, get_totp_code and update_secret actions, shared library helpers ([#72](https://github.com/BeyondTrust/secrets-safe-action/issues/72))
+
+#### Bug Fixes
+
+* pin orgoro/coverage to SHA and remove SONAR_TOKEN from PR workflow (BIPS-35836, BIPS-35842) ([#63](https://github.com/BeyondTrust/secrets-safe-action/issues/63))
+
 ### [2.0.2](https://github.com/BeyondTrust/secrets-safe-action/compare/v2.0.1...v2.0.2) / 2026-05-20
 
 #### Bug Fixes
